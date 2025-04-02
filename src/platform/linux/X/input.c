@@ -366,7 +366,7 @@ struct input_event *x_input_wait(struct input_event *events, size_t sz)
 {
 	size_t i;
 	static struct input_event ev;
-	struct input_evnet *ret = NULL;
+	struct input_event *ret = NULL;
 
 	for (i = 0; i < sz; i++) {
 		struct input_event *ev = &events[i];
@@ -437,7 +437,7 @@ uint8_t x_input_lookup_code(const char *name, int *shifted)
 
 	if (!sym)
 		return 0;
-	
+
 	code = XKeysymToKeycode(dpy, sym);
 
 	if (XKeycodeToKeysym(dpy, code, 0) != sym)
