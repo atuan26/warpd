@@ -72,6 +72,9 @@ int hex_to_rgba(const char *str, uint8_t *r, uint8_t *g, uint8_t *b,
 uint32_t parse_xcolor(const char *s, uint8_t *opacity);
 void init_xscreens();
 
+struct screen *get_screen(int index);
+size_t get_nr_screens();
+
 /* Globals. */
 extern Display *dpy;
 

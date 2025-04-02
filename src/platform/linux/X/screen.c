@@ -1,7 +1,17 @@
 #include "X.h"
 
 struct screen xscreens[32];
-size_t nr_xscreens = 0;
+size_t nr_xscreens;
+
+struct screen *get_screen(int index)
+{
+	if (index < 0 || index >= 32) {
+		return NULL; // Safety check
+	}
+	return &xscreens[index];
+}
+
+size_t get_nr_screens() { return nr_xscreens; }
 
 static void window_set_color(Window w, const char *color)
 {
@@ -89,4 +99,3 @@ void x_screen_draw_box(struct screen *scr, int x, int y, int w, int h, const cha
 	XMoveResizeWindow(dpy, box->win, scr->x + x, scr->y + y, w, h);
 	XRaiseWindow(dpy, box->win);
 }
-
