@@ -7,7 +7,7 @@ OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o)
 RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon
 
 all: $(OBJECTS)
-	-mkdir bin
+	-mkdir -p bin
 	$(CC) -o bin/warpd $(OBJECTS) -framework cocoa -framework carbon
 	./codesign/sign.sh
 rel: clean

@@ -27,7 +27,7 @@ endif
 OBJECTS=$(CFILES:.c=.o)
 
 all: $(OBJECTS)
-	-mkdir bin
+	-mkdir -p bin
 	$(CC)  -o bin/warpd $(OBJECTS) $(CFLAGS)
 clean:
 	-rm $(OBJECTS)
