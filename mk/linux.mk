@@ -12,6 +12,7 @@ endif
 
 ifndef DISABLE_X
 	CFLAGS+=-I/usr/include/freetype2/\
+	    -I/usr/include/at-spi-2.0 -I/usr/include/dbus-1.0 -I/usr/lib/dbus-1.0/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/libmount -I/usr/include/blkid -I/usr/include/sysprof-6 -pthread -latspi -ldbus-1 -lgobject-2.0 -lglib-2.0 \
 		-lXfixes\
 		-lXext\
 		-lXinerama\

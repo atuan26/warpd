@@ -77,6 +77,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"grid",
 		"hint",
 		"hint2",
+		"smart_hint",
 		"hist_back",
 		"hist_forward",
 		"history",
@@ -110,6 +111,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		config_input_whitelist(keys, sizeof keys / sizeof keys[0]);
 		if (start_ev == NULL) {
 			ev = platform->input_next_event(10);
+			if (ev) printf("\x1b[36m🔍 Pressed = \x1b[32m(%d, %d)\x1b[0m\n", ev->code, ev->mods);
 			time += 10;
 		} else {
 			ev = start_ev;
@@ -204,6 +206,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 			   config_input_match(ev, "grid") ||
 			   config_input_match(ev, "screen") ||
 			   config_input_match(ev, "history") ||
+			   config_input_match(ev, "smart_hint") ||
 			   config_input_match(ev, "hint2") ||
 			   config_input_match(ev, "hint")) {
 			goto exit;

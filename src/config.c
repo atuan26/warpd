@@ -41,6 +41,7 @@ static struct {
 	{ "hint2", "X", "Activate two pass hint mode.", OPT_KEY },
 	{ "grid", "g", "Activate (g)rid mode while in normal mode.", OPT_KEY },
 	{ "screen", "s", "Activate (s)creen selection while in normal mode.", OPT_KEY },
+	{ "smart_hint", "f", "Activate smart hint mode while in normal mode.", OPT_KEY },
 
 	{ "left", "h", "Move the cursor left in normal mode.", OPT_KEY },
 	{ "down", "j", "Move the cursor down in normal mode.", OPT_KEY },
@@ -88,6 +89,8 @@ static struct {
 
 	{ "grid_color", "#1c1c1e", "The color of the grid.", OPT_STRING },
 	{ "grid_border_color", "#ffffff", "The color of the grid border.", OPT_STRING },
+
+	{ "smart_hint_exit", "esc", "Exit smart hint mode and return to normal mode.", OPT_KEY },
 
 	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
 	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },
