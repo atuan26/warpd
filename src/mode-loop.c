@@ -34,6 +34,8 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 				mode = MODE_GRID;
 			else if (config_input_match(ev, "screen"))
 				mode = MODE_SCREEN_SELECTION;
+			else if (config_input_match(ev, "smart_hint"))
+				mode = MODE_SMART_HINT;
 			else if ((rc = config_input_match(ev, "oneshot_buttons")) || !ev) {
 				goto exit;
 			}
@@ -62,6 +64,11 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 			mode = MODE_NORMAL;
 			ev = NULL;
 			break;
+		case MODE_SMART_HINT:
+			smart_hint_mode();
+			mode = MODE_NORMAL;
+			ev = NULL;
+			break;
 		}
 
 		if (oneshot && (initial_mode != MODE_NORMAL || (btn = config_input_match(ev, "buttons")))) {
@@ -86,4 +93,3 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 exit:
 	return rc;
 }
-

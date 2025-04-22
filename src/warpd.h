@@ -62,6 +62,7 @@ enum {
 	MODE_NORMAL,
 	MODE_HINTSPEC,
 	MODE_SCREEN_SELECTION,
+	MODE_SMART_HINT,
 };
 
 enum option_type {
@@ -96,6 +97,8 @@ void screen_selection_mode();
 struct input_event *grid_mode();
 struct input_event *normal_mode(struct input_event *start_ev, int oneshot);
 
+int smart_hint_mode();
+
 void init_hints();
 void init_normal_mode();
 void init_grid_mode();
@@ -127,7 +130,6 @@ void hist_add(int x, int y);
 int hist_get(int *x, int *y);
 void hist_prev();
 void hist_next();
-
 
 size_t histfile_read(struct histfile_ent **entries);
 void histfile_add(int x, int y);
