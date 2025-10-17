@@ -19,7 +19,7 @@ static gchar *get_label(AtspiAccessible *accessible)
 {
 	GArray *relations;
 	AtspiRelation *relation;
-	gint i;
+	guint i;
 	gchar *result = "";
 
 	relations = atspi_accessible_get_relation_set(accessible, NULL);
@@ -175,19 +175,26 @@ static AtspiAccessible *get_active_window(void)
 	AtspiAccessible *active_window = NULL;
 
 	desktop = atspi_get_desktop(0);
+	if (!desktop)
+		return NULL;
+
 	for (i = 0; i < atspi_accessible_get_child_count(desktop, NULL); i++) {
 		AtspiAccessible *app =
 		    atspi_accessible_get_child_at_index(desktop, i, NULL);
+		if (!app)
+			continue;
 
 		gint window_count = atspi_accessible_get_child_count(app, NULL);
 
 		for (gint j = 0; j < window_count; j++) {
 			AtspiAccessible *window =
 			    atspi_accessible_get_child_at_index(app, j, NULL);
+			if (!window)
+				continue;
 
 			AtspiStateSet *states =
 			    atspi_accessible_get_state_set(window);
-			if (atspi_state_set_contains(states,
+			if (states && atspi_state_set_contains(states,
 						     ATSPI_STATE_ACTIVE)) {
 				active_window = g_object_ref(window);
 				g_object_unref(states);
@@ -196,8 +203,13 @@ static AtspiAccessible *get_active_window(void)
 				g_object_unref(desktop);
 				return active_window;
 			}
+			if (states)
+				g_object_unref(states);
+			g_object_unref(window);
 		}
+		g_object_unref(app);
 	}
+	g_object_unref(desktop);
 	return NULL;
 }
 
@@ -207,7 +219,6 @@ void deduplicate_elements_by_position(GSList **element_list_ptr)
 		return;
 
 	// Use a safer approach that builds a new list from valid elements only
-	GSList *new_list = NULL;
 	GHashTable *position_map =
 	    g_hash_table_new(g_direct_hash, g_direct_equal);
 	GSList *last_occurrence_map = NULL;
@@ -255,7 +266,14 @@ void free_detector_resources(void) { free_element_list(); }
 GSList *detect_elements()
 {
 	AtspiAccessible *active_window = get_active_window();
+	if (!active_window) {
+		fprintf(stderr, "Warning: No active window found for smart hint detection\n");
+		return NULL;
+	}
+
 	dump_node_content(active_window, 0);
+	g_object_unref(active_window);
+
 	deduplicate_elements_by_position(&element_list);
 	return element_list;
 }

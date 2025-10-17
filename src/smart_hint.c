@@ -82,8 +82,13 @@ static void generate_labels(struct hint *hints, size_t num_elements)
 static struct hint *convert_to_hints(int w, int h, size_t *nr_hints)
 {
 	GSList *element_list = detect_elements();
+	if (!element_list) {
+		*nr_hints = 0;
+		return NULL;
+	}
+
 	*nr_hints = g_slist_length(element_list);
-	if (nr_hints == 0) {
+	if (*nr_hints == 0) {
 		return NULL;
 	}
 
@@ -95,8 +100,13 @@ static struct hint *convert_to_hints(int w, int h, size_t *nr_hints)
 
 	GSList *iter = element_list;
 	for (size_t i = 0; i < *nr_hints; i++, iter = iter->next) {
+		if (!iter || !iter->data) {
+			free(hints);
+			*nr_hints = 0;
+			return NULL;
+		}
+
 		struct ElementInfo *element = iter->data;
-		// print_info(element);
 		hints[i].x = element->x;
 		hints[i].y = element->y;
 		hints[i].w = w;
@@ -193,8 +203,7 @@ int smart_hint_mode()
 	atspi_init_detector();
 
 	screen_t scr;
-	struct hint *hints;
-	struct input_event *ev;
+	struct hint *hints = NULL;
 	int sw, sh;
 
 	platform->mouse_get_position(&scr, NULL, NULL);
@@ -204,5 +213,14 @@ int smart_hint_mode()
 	get_hint_size(scr, &w, &h);
 
 	hints = convert_to_hints(w, h, &nr_hints);
-	return hint_selection(scr, hints, nr_hints);
+	if (!hints || nr_hints == 0) {
+		fprintf(stderr, "Smart hint mode: No interactive elements detected\n");
+		if (hints)
+			free(hints);
+		return -1;
+	}
+
+	int result = hint_selection(scr, hints, nr_hints);
+	free(hints);
+	return result;
 }
