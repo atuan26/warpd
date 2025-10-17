@@ -8,6 +8,10 @@
 
 Display *dpy = NULL;
 
+/* UI element detector functions (implemented in ui_detector.c) */
+extern struct ui_detection_result *linux_detect_ui_elements(void);
+extern void linux_free_ui_elements(struct ui_detection_result *result);
+
 struct monitored_file monitored_files[32];
 size_t nr_monitored_files = 0;
 
@@ -231,4 +235,8 @@ void x_init(struct platform *platform)
 	platform->screen_get_dimensions = x_screen_get_dimensions;
 	platform->screen_list = x_screen_list;
 	platform->scroll = x_scroll;
+
+	/* UI element detection for smart hint mode */
+	platform->detect_ui_elements = linux_detect_ui_elements;
+	platform->free_ui_elements = linux_free_ui_elements;
 }

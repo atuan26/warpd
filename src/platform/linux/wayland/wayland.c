@@ -6,6 +6,10 @@
 #include <limits.h>
 #include "wayland.h"
 
+/* UI element detector functions (implemented in ui_detector.c) */
+extern struct ui_detection_result *linux_detect_ui_elements(void);
+extern void linux_free_ui_elements(struct ui_detection_result *result);
+
 #define UNIMPLEMENTED { \
 	fprintf(stderr, "FATAL: wayland: %s unimplemented\n", __func__); \
 	exit(-1);							 \
@@ -235,4 +239,8 @@ void wayland_init(struct platform *platform)
 	platform->screen_get_dimensions = way_screen_get_dimensions;
 	platform->screen_list = way_screen_list;
 	platform->scroll = way_scroll;
+
+	/* UI element detection for smart hint mode */
+	platform->detect_ui_elements = linux_detect_ui_elements;
+	platform->free_ui_elements = linux_free_ui_elements;
 }

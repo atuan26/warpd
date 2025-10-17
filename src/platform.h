@@ -22,6 +22,7 @@
 
 #define MAX_HINTS 2048
 #define MAX_SCREENS 32
+#define MAX_UI_ELEMENTS 512
 
 struct input_event {
 	uint8_t code;
@@ -37,6 +38,24 @@ struct hint {
 	int h;
 
 	char label[16];
+};
+
+/* UI element detected by accessibility APIs or computer vision */
+struct ui_element {
+	int x;           /* X coordinate on screen */
+	int y;           /* Y coordinate on screen */
+	int w;           /* Width of element */
+	int h;           /* Height of element */
+	char *name;      /* Element name/label (may be NULL) */
+	char *role;      /* Element role/type (may be NULL) */
+};
+
+/* Result of UI element detection */
+struct ui_detection_result {
+	struct ui_element *elements;
+	size_t count;
+	int error;               /* 0 = success, negative = error */
+	char error_msg[256];     /* Human-readable error message */
 };
 
 struct screen;
@@ -88,6 +107,25 @@ struct platform {
 	void (*scroll)(int direction);
 
 	void (*copy_selection)();
+
+	/*
+	 * UI Element Detection for Smart Hint Mode
+	 *
+	 * Detect interactive UI elements in the active window.
+	 * Implementation can use:
+	 *   - Linux: AT-SPI (primary) or OpenCV (fallback)
+	 *   - macOS: Accessibility API
+	 *   - Windows: UI Automation
+	 *
+	 * Returns: ui_detection_result with elements array (must be freed with free_ui_elements)
+	 *          NULL if detection not supported on this platform
+	 */
+	struct ui_detection_result *(*detect_ui_elements)();
+
+	/*
+	 * Free UI detection result returned by detect_ui_elements()
+	 */
+	void (*free_ui_elements)(struct ui_detection_result *result);
 
 	/*
 	* Draw operations may (or may not) be queued until this function
