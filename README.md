@@ -23,6 +23,17 @@ A modal keyboard driven interface for mouse manipulation.
 <img src="demo/discrete2.gif" height="400px" width="711px"/>
 </p>
 
+## Smart Hint Mode `f` (from Normal Mode)
+*Inspired by the [Vimium](https://github.com/philc/vimium) browser extension.*
+
+**Note:** This feature uses AT-SPI (Assistive Technology Service Provider Interface)
+and is only available on Linux with applications that support accessibility APIs. It
+may not work on all platforms or applications. NOT FULLY TESTED.
+
+<p align="center">
+<img src="demo/smart_hint.gif" height="400px"/>
+</p>
+
 
 # Dependencies
 
@@ -36,6 +47,13 @@ The usual array of X libraries:
  - libxfixes
  - libxtst
  - libx11
+
+For smart hint mode support (Linux only):
+
+ - libatspi
+ - libdbus-1
+ - libgobject-2.0
+ - libglib-2.0
 
 ## Wayland (sway/wlroots only (**no gnome support**))
 
@@ -72,7 +90,10 @@ sudo apt-get install \
 	libx11-dev \
 	libcairo2-dev \
 	libxkbcommon-dev \
-	libwayland-dev &&
+	libwayland-dev \
+	libatspi2.0-dev \
+	libdbus-1-dev \
+	libglib2.0-dev &&
 make && sudo make install
 ```
 
@@ -144,6 +165,12 @@ launchctl unload /Library/LaunchAgents/com.warpd.warpd.plist
 3. Use the normal movement keys (default `hjkl`) to adjust the cursor.
 4. Press `m` to left click, `,` to middle click or `.` to right click.
 5. Press `escape` to quit.
+
+## Smart Hint Mode
+2. Press `A-M-c` to activate normal mode first.
+3. Press `f` to activate smart hint mode, which automatically detects interactive UI elements.
+4. Enter the key sequence associated with the desired element to warp the pointer to that location.
+5. Press `escape` to return to normal mode.
 
 A drag movement can be simulated from any of the above modes by focusing on the
 source and then pressing the `drag_key` (default `v`) which will cause normal
