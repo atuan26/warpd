@@ -114,6 +114,11 @@ static struct {
 
 	{ "opencv_auto_threshold", "3", "Number of elements to trigger relaxed mode in auto mode.", OPT_INT },
 
+	/* Windows UI Automation detection parameters */
+	{ "uiautomation_min_width", "10", "Minimum element width in pixels (UI Automation).", OPT_INT },
+	{ "uiautomation_min_height", "10", "Minimum element height in pixels (UI Automation).", OPT_INT },
+	{ "uiautomation_min_area", "100", "Minimum element area in pixels (UI Automation).", OPT_INT },
+
 	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
 	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },
 	{ "hint_chars", "abcdefghijklmnopqrstuvwxyz", "The character set from which hints are generated. The total number of hints is the square of the size of this string. It may be desirable to increase this for larger screens or trim it to increase gaps between hints.", OPT_STRING },
