@@ -127,18 +127,3 @@ void linux_free_ui_elements(struct ui_detection_result *result)
 	free(result);
 }
 
-/* Stub implementations for OpenCV fallback (to be implemented) */
-__attribute__((weak)) int opencv_is_available(void)
-{
-	return 0; /* OpenCV not available by default */
-}
-
-__attribute__((weak)) struct ui_detection_result *opencv_detect_ui_elements(void)
-{
-	return NULL;
-}
-
-__attribute__((weak)) void opencv_free_ui_elements(struct ui_detection_result *result)
-{
-	(void)result;
-}

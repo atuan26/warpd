@@ -92,6 +92,28 @@ static struct {
 
 	{ "smart_hint_exit", "esc", "Exit smart hint mode and return to normal mode.", OPT_KEY },
 
+	/* OpenCV detection parameters (used as fallback for smart hint) */
+	{ "opencv_mode", "auto", "OpenCV detection mode: strict (buttons only), relaxed (more elements), auto (adaptive).", OPT_STRING },
+	{ "opencv_min_area", "10", "Minimum element area in pixels (strict mode).", OPT_INT },
+	{ "opencv_max_area", "260000", "Maximum element area in pixels (strict mode).", OPT_INT },
+	{ "opencv_min_width", "12", "Minimum element width in pixels (strict mode).", OPT_INT },
+	{ "opencv_min_height", "12", "Minimum element height in pixels (strict mode).", OPT_INT },
+	{ "opencv_max_width", "800", "Maximum element width in pixels (strict mode).", OPT_INT },
+	{ "opencv_max_height", "200", "Maximum element height in pixels (strict mode).", OPT_INT },
+	{ "opencv_min_aspect", "0.2", "Minimum aspect ratio (width/height, strict mode).", OPT_STRING },
+	{ "opencv_max_aspect", "10.0", "Maximum aspect ratio (width/height, strict mode).", OPT_STRING },
+
+	{ "opencv_relaxed_min_area", "150", "Minimum element area in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_max_area", "500000", "Maximum element area in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_min_width", "6", "Minimum element width in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_min_height", "6", "Minimum element height in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_max_width", "1200", "Maximum element width in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_max_height", "400", "Maximum element height in pixels (relaxed mode).", OPT_INT },
+	{ "opencv_relaxed_min_aspect", "0.1", "Minimum aspect ratio (relaxed mode).", OPT_STRING },
+	{ "opencv_relaxed_max_aspect", "20.0", "Maximum aspect ratio (relaxed mode).", OPT_STRING },
+
+	{ "opencv_auto_threshold", "3", "Number of elements to trigger relaxed mode in auto mode.", OPT_INT },
+
 	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
 	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },
 	{ "hint_chars", "abcdefghijklmnopqrstuvwxyz", "The character set from which hints are generated. The total number of hints is the square of the size of this string. It may be desirable to increase this for larger screens or trim it to increase gaps between hints.", OPT_STRING },

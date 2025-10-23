@@ -1,4 +1,5 @@
 CFILES=$(shell find src/platform/linux/*.c src/*.c)
+CXXFILES=
 
 ifndef DISABLE_WAYLAND
 	CFLAGS+=-lwayland-client\
@@ -22,14 +23,23 @@ ifndef DISABLE_X
 		-lXft\
 		-DWARPD_X=1
 
+	# OpenCV support for smart hint fallback
+	CFLAGS+=-DENABLE_OPENCV=1 -I/usr/include/opencv4
+	CXXFLAGS+=-DENABLE_OPENCV=1 -I/usr/include/opencv4
+	LDFLAGS+=-lopencv_imgproc -lopencv_core -lstdc++
+	CXXFILES+=$(shell find src/platform/linux -name 'opencv_detector.cpp')
+
 	CFILES+=$(shell find src/platform/linux/X/*.c)
 endif
 
-OBJECTS=$(CFILES:.c=.o)
+OBJECTS=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
+
+%.o: %.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS) $(CFLAGS)
 
 all: $(OBJECTS)
 	-mkdir -p bin
-	$(CC)  -o bin/warpd $(OBJECTS) $(CFLAGS)
+	$(CXX) -o bin/warpd $(OBJECTS) $(CFLAGS) $(LDFLAGS)
 clean:
 	-rm $(OBJECTS)
 	-rm -r bin
