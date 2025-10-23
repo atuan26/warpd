@@ -441,6 +441,10 @@ static void commit()
 	wn_screen_redraw(scr);
 }
 
+/* UI element detector functions (implemented in ui_detector.c) */
+extern struct ui_detection_result *windows_detect_ui_elements(void);
+extern void windows_free_ui_elements(struct ui_detection_result *result);
+
 void platform_run(int (*main)(struct platform *platform))
 {
 	SetWindowsHookEx(WH_KEYBOARD_LL, keyboardHook, GetModuleHandle(NULL), 0);
@@ -472,6 +476,10 @@ void platform_run(int (*main)(struct platform *platform))
 	platform.input_lookup_code = input_lookup_code;
 	platform.input_lookup_name = input_lookup_name;
 	platform.monitor_file = wn_monitor_file;
+
+	/* UI element detection for smart hint mode */
+	platform.detect_ui_elements = windows_detect_ui_elements;
+	platform.free_ui_elements = windows_free_ui_elements;
 
 	exit(main(&platform));
 }
