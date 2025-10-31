@@ -2,13 +2,11 @@
 CC=x86_64-w64-mingw32-gcc
 CXX=x86_64-w64-mingw32-g++
 CFLAGS+=-DWINDOWS -mwindows
-CXXFLAGS+=-DWINDOWS -mwindows
-LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows
+CXXFLAGS+=-DWINDOWS -mwindows -I/mingw64/include/opencv4
+LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows -lopencv_imgproc -lopencv_core
 
-LDFLAGS+=-lopencv_imgproc -lopencv_core
-
-CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c' )
-CXXFILES=$(shell find src/platform/windows/*.cpp) src/common/opencv_detector.cpp src/platform/windows/opencv_detector.cpp
+CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c)
+CXXFILES=$(shell find src/platform/windows/*.cpp) src/common/opencv_detector.cpp
 OBJFILES=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 
 ifeq ($(CC), cl.exe)
@@ -24,6 +22,9 @@ endif
 
 %.obj: %.cpp
 	$(CXX) /c /Fo:$@ $<
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
