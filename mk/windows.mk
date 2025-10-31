@@ -4,7 +4,7 @@ CXX=x86_64-w64-mingw32-g++
 CFLAGS+=-DWINDOWS -mwindows
 CXXFLAGS+=-DWINDOWS -mwindows
 LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows
-CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c ! -name 'warpd.c' )
+CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c' )
 CXXFILES=$(shell find src/platform/windows/*.cpp)
 OBJFILES=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 

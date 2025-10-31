@@ -22,7 +22,6 @@ extern int config_get_int(const char *key);
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <uiautomation.h>
-#include <atlbase.h>
 #include <vector>
 #include <string>
 #include <cstdio>
@@ -30,7 +29,7 @@ extern int config_get_int(const char *key);
 #include <cstdlib>
 
 // Global UI Automation objects
-static CComPtr<IUIAutomation> g_pAutomation = nullptr;
+static IUIAutomation* g_pAutomation = nullptr;
 static bool g_initialized = false;
 
 /**
@@ -45,8 +44,8 @@ static bool initialize_uiautomation()
     if (FAILED(hr))
         return false;
 
-    hr = CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER,
-                         IID_IUIAutomation, (void**)&g_pAutomation);
+    hr = CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER,
+                         __uuidof(IUIAutomation), (void**)&g_pAutomation);
     if (FAILED(hr)) {
         CoUninitialize();
         return false;
@@ -62,7 +61,10 @@ static bool initialize_uiautomation()
 static void cleanup_uiautomation()
 {
     if (g_initialized) {
-        g_pAutomation.Release();
+        if (g_pAutomation) {
+            g_pAutomation->Release();
+            g_pAutomation = nullptr;
+        }
         CoUninitialize();
         g_initialized = false;
     }
@@ -125,22 +127,28 @@ static bool is_interactive_element(IUIAutomationElement* element)
         return false;
 
     // Check for invoke pattern (clickable)
-    CComPtr<IUIAutomationInvokePattern> invokePattern;
+    IUIAutomationInvokePattern* invokePattern = nullptr;
     hr = element->GetCurrentPattern(UIA_InvokePatternId, (IUnknown**)&invokePattern);
-    if (SUCCEEDED(hr) && invokePattern)
+    if (SUCCEEDED(hr) && invokePattern) {
+        invokePattern->Release();
         return true;
+    }
 
     // Check for selection item pattern (selectable)
-    CComPtr<IUIAutomationSelectionItemPattern> selectionPattern;
+    IUIAutomationSelectionItemPattern* selectionPattern = nullptr;
     hr = element->GetCurrentPattern(UIA_SelectionItemPatternId, (IUnknown**)&selectionPattern);
-    if (SUCCEEDED(hr) && selectionPattern)
+    if (SUCCEEDED(hr) && selectionPattern) {
+        selectionPattern->Release();
         return true;
+    }
 
     // Check for toggle pattern (toggleable)
-    CComPtr<IUIAutomationTogglePattern> togglePattern;
+    IUIAutomationTogglePattern* togglePattern = nullptr;
     hr = element->GetCurrentPattern(UIA_TogglePatternId, (IUnknown**)&togglePattern);
-    if (SUCCEEDED(hr) && togglePattern)
+    if (SUCCEEDED(hr) && togglePattern) {
+        togglePattern->Release();
         return true;
+    }
 
     return false;
 }
@@ -262,23 +270,27 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
     }
 
     // Recursively process children
-    CComPtr<IUIAutomationElementArray> children;
+    IUIAutomationElementArray* children = nullptr;
     HRESULT hr = element->GetChildren(&children);
     if (FAILED(hr) || !children)
         return;
 
     int childCount = 0;
     hr = children->get_Length(&childCount);
-    if (FAILED(hr))
+    if (FAILED(hr)) {
+        children->Release();
         return;
+    }
 
     for (int i = 0; i < childCount && elements.size() < MAX_UI_ELEMENTS; i++) {
-        CComPtr<IUIAutomationElement> child;
+        IUIAutomationElement* child = nullptr;
         hr = children->GetElement(i, &child);
         if (SUCCEEDED(hr) && child) {
             collect_elements(child, elements);
+            child->Release();
         }
     }
+    children->Release();
 }
 
 // C interface functions
@@ -320,7 +332,7 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         }
 
         // Get UI Automation element for the window
-        CComPtr<IUIAutomationElement> rootElement;
+        IUIAutomationElement* rootElement = nullptr;
         HRESULT hr = g_pAutomation->ElementFromHandle(hwnd, &rootElement);
         if (FAILED(hr) || !rootElement) {
             result->error = -3;
@@ -332,6 +344,7 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         // Collect interactive elements
         std::vector<struct ui_element> elements;
         collect_elements(rootElement, elements);
+        rootElement->Release();
 
         if (elements.empty()) {
             result->error = -4;
