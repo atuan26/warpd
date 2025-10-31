@@ -27,7 +27,7 @@ endif
 
 all: $(OBJFILES)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd.exe src/windows/icon.res $(OBJFILES) $(LDFLAGS)
+	$(CXX) -o bin/warpd.exe $(OBJFILES) $(LDFLAGS)
 	#$(CC) /Fe:bin/warpd.exe $(OBJFILES) user32.lib gdi32.lib
 clean:
 	rm $(OBJFILES)
