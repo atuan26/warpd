@@ -5,10 +5,9 @@ CFLAGS+=-DWINDOWS -mwindows
 CXXFLAGS+=-DWINDOWS -mwindows
 LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows
 
-CXXFLAGS+=-I/mingw64/include/opencv4
 LDFLAGS+=-lopencv_imgproc -lopencv_core
 
-CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c)
+CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c' )
 CXXFILES=$(shell find src/platform/windows/*.cpp) src/common/opencv_detector.cpp src/platform/windows/opencv_detector.cpp
 OBJFILES=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 
