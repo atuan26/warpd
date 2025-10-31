@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* Forward declarations for UI Automation functions (implemented in C++) */
 extern struct ui_detection_result *uiautomation_detect_ui_elements(void);
