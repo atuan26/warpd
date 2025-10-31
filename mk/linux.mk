@@ -1,6 +1,12 @@
 CFILES=$(shell find src/platform/linux/*.c src/*.c)
 CXXFILES=
 
+# OpenCV support for smart hint fallback - always enabled
+CFLAGS+=-I/usr/include/opencv4
+CXXFLAGS+=-I/usr/include/opencv4
+LDFLAGS+=-lopencv_imgproc -lopencv_core -lstdc++
+CXXFILES+=src/common/opencv_detector.cpp src/platform/linux/opencv_detector.cpp
+
 ifndef DISABLE_WAYLAND
 	CFLAGS+=-lwayland-client\
 		-lxkbcommon\
@@ -22,12 +28,6 @@ ifndef DISABLE_X
 		-lX11\
 		-lXft\
 		-DWARPD_X=1
-
-	# OpenCV support for smart hint fallback
-	CFLAGS+=-DENABLE_OPENCV=1 -I/usr/include/opencv4
-	CXXFLAGS+=-DENABLE_OPENCV=1 -I/usr/include/opencv4
-	LDFLAGS+=-lopencv_imgproc -lopencv_core -lstdc++
-	CXXFILES+=$(shell find src/platform/linux -name 'opencv_detector.cpp')
 
 	CFILES+=$(shell find src/platform/linux/X/*.c)
 endif
