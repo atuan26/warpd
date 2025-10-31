@@ -5,12 +5,11 @@ CFLAGS+=-DWINDOWS -mwindows
 CXXFLAGS+=-DWINDOWS -mwindows
 LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows
 
-# OpenCV support - always enabled
+CXXFLAGS+=-I/mingw64/include/opencv4
 LDFLAGS+=-lopencv_imgproc -lopencv_core
 
-# Explicit file lists to avoid find command issues on Windows
-CFILES=src/config.c src/daemon.c src/grid.c src/grid_drw.c src/hint.c src/histfile.c src/history.c src/input.c src/mode-loop.c src/mouse.c src/normal.c src/screen.c src/scroll.c src/smart_hint.c src/windows/main.c src/windows/stubs.c src/platform/windows/filemon.c src/platform/windows/ui_detector.c src/platform/windows/windows.c src/platform/windows/winscreen.c
-CXXFILES=src/platform/windows/uiautomation_detector.cpp src/common/opencv_detector.cpp src/platform/windows/opencv_detector.cpp
+CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c)
+CXXFILES=$(shell find src/platform/windows/*.cpp) src/common/opencv_detector.cpp src/platform/windows/opencv_detector.cpp
 OBJFILES=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 
 ifeq ($(CC), cl.exe)
