@@ -269,28 +269,30 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
         }
     }
 
-    // Recursively process children
-    IUIAutomationElementArray* children = nullptr;
-    HRESULT hr = element->GetChildren(&children);
-    if (FAILED(hr) || !children)
+    // Use tree walker to process children
+    if (!g_pAutomation)
         return;
 
-    int childCount = 0;
-    hr = children->get_Length(&childCount);
-    if (FAILED(hr)) {
-        children->Release();
+    IUIAutomationTreeWalker* walker = nullptr;
+    HRESULT hr = g_pAutomation->get_ControlViewWalker(&walker);
+    if (FAILED(hr) || !walker)
         return;
-    }
 
-    for (int i = 0; i < childCount && elements.size() < MAX_UI_ELEMENTS; i++) {
-        IUIAutomationElement* child = nullptr;
-        hr = children->GetElement(i, &child);
-        if (SUCCEEDED(hr) && child) {
-            collect_elements(child, elements);
-            child->Release();
-        }
+    IUIAutomationElement* child = nullptr;
+    hr = walker->GetFirstChildElement(element, &child);
+    
+    while (SUCCEEDED(hr) && child && elements.size() < MAX_UI_ELEMENTS) {
+        collect_elements(child, elements);
+        
+        IUIAutomationElement* nextChild = nullptr;
+        hr = walker->GetNextSiblingElement(child, &nextChild);
+        child->Release();
+        child = nextChild;
     }
-    children->Release();
+    
+    if (child)
+        child->Release();
+    walker->Release();
 }
 
 // C interface functions
