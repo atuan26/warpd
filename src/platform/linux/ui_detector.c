@@ -5,7 +5,7 @@
  */
 
 #include "../../platform.h"
-#include "../../atspi-detector.h"
+#include "atspi-detector.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
