@@ -1,6 +1,6 @@
 .PHONY: rel all install clean
 
-CFILES=$(shell find src/*.c)
+CFILES=$(shell find src/*.c) src/platform/macos/ui_detector.c
 OBJCFILES=$(shell find src/platform/macos -name '*.m')
 CXXFILES=src/common/opencv_detector.cpp src/platform/macos/opencv_detector.cpp
 OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o)
@@ -8,14 +8,17 @@ OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o)
 # OpenCV support - always enabled
 LDFLAGS+=-lopencv_imgproc -lopencv_core -lstdc++
 
-RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon
+RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework ApplicationServices
 
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
+%.o: %.m
+	$(CC) -c $< -o $@ $(CFLAGS)
+
 all: $(OBJECTS)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd $(OBJECTS) -framework cocoa -framework carbon $(LDFLAGS)
+	$(CXX) -o bin/warpd $(OBJECTS) -framework cocoa -framework carbon -framework ApplicationServices $(LDFLAGS)
 	./codesign/sign.sh
 rel: clean
 	$(CC) -o bin/warpd-arm $(CFILES) $(OBJCFILES) -target arm64-apple-macos $(CFLAGS) $(RELFLAGS)

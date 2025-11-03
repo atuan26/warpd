@@ -165,6 +165,8 @@ static void *mainloop(void *arg)
 	struct platform platform = {
 		.commit = osx_commit,
 		.copy_selection = osx_copy_selection,
+		.detect_ui_elements = macos_detect_ui_elements,
+		.free_ui_elements = macos_free_ui_elements,
 		.hint_draw = osx_hint_draw,
 		.init_hint = osx_init_hint,
 		.input_grab_keyboard = osx_input_grab_keyboard,

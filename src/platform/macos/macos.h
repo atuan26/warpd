@@ -125,4 +125,8 @@ void osx_monitor_file(const char *_path);
 void osx_input_interrupt();
 void osx_commit();
 
+/* UI Element Detection */
+struct ui_detection_result *macos_detect_ui_elements(void);
+void macos_free_ui_elements(struct ui_detection_result *result);
+
 #endif
