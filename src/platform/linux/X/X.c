@@ -12,6 +12,9 @@ Display *dpy = NULL;
 extern struct ui_detection_result *linux_detect_ui_elements(void);
 extern void linux_free_ui_elements(struct ui_detection_result *result);
 
+/* AT-SPI cleanup function */
+extern void atspi_cleanup(void);
+
 struct monitored_file monitored_files[32];
 size_t nr_monitored_files = 0;
 
@@ -208,6 +211,9 @@ void x_init(struct platform *platform)
 		fprintf(stderr, "Could not connect to X server\n");
 		exit(-1);
 	}
+	
+	/* Register cleanup function to be called on exit */
+	atexit(atspi_cleanup);
 
 	/* TODO: account for screen hotplugging */
 	init_xscreens();

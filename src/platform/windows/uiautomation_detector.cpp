@@ -32,6 +32,7 @@ extern int config_get_int(const char *key);
 static IUIAutomation* g_pAutomation = nullptr;
 static IUIAutomationTreeWalker* g_pTreeWalker = nullptr;
 static bool g_initialized = false;
+static int max_depth_reached = 0;
 
 /**
  * Initialize UI Automation
@@ -231,10 +232,15 @@ static std::string get_element_type(IUIAutomationElement* element)
 /**
  * Recursively collect interactive elements with depth limiting for performance
  */
-static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8)
+static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8, int current_depth = 0)
 {
     if (!element || elements.size() >= MAX_UI_ELEMENTS || max_depth <= 0)
         return;
+    
+    // Track maximum depth actually reached
+    if (current_depth > max_depth_reached) {
+        max_depth_reached = current_depth;
+    }
 
     // Check if current element is interactive
     if (is_interactive_element(element)) {
@@ -282,7 +288,7 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
     HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
     
     while (SUCCEEDED(hr) && child && elements.size() < MAX_UI_ELEMENTS) {
-        collect_elements(child, elements, max_depth - 1);
+        collect_elements(child, elements, max_depth - 1, current_depth + 1);
         
         IUIAutomationElement* nextChild = nullptr;
         hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
@@ -346,6 +352,9 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         std::vector<struct ui_element> elements;
         DWORD startTime = GetTickCount();
         
+        // Reset depth tracking
+        max_depth_reached = 0;
+        
         // Get max depth from config, default to 8
         int max_depth = 8;
         try {
@@ -354,11 +363,17 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
             // Use default if config access fails
         }
         
-        collect_elements(rootElement, elements, max_depth);
+        collect_elements(rootElement, elements, max_depth, 0);
         DWORD endTime = GetTickCount();
         rootElement->Release();
 
-        fprintf(stderr, "UI Automation: Collection took %lu ms (depth: %d)\n", endTime - startTime, max_depth);
+        fprintf(stderr, "UI Automation: Collection took %lu ms (depth: %d/%d, elements: %zu, limit: %d)\n", 
+                endTime - startTime, max_depth_reached, max_depth, elements.size(), MAX_UI_ELEMENTS);
+        
+        /* Suggest increasing depth if we hit the limit */
+        if (max_depth_reached >= max_depth) {
+            fprintf(stderr, "UI Automation: Hit max depth limit! Consider increasing uiautomation_max_depth for more hints\n");
+        }
 
         if (elements.empty()) {
             result->error = -4;

@@ -118,7 +118,11 @@ static struct {
 	{ "uiautomation_min_width", "10", "Minimum element width in pixels (UI Automation).", OPT_INT },
 	{ "uiautomation_min_height", "10", "Minimum element height in pixels (UI Automation).", OPT_INT },
 	{ "uiautomation_min_area", "100", "Minimum element area in pixels (UI Automation).", OPT_INT },
-	{ "uiautomation_max_depth", "8", "Maximum UI tree traversal depth (UI Automation).", OPT_INT },
+	{ "uiautomation_max_depth", "25", "Maximum UI tree traversal depth (UI Automation).", OPT_INT },
+
+	/* Linux AT-SPI detection parameters */
+	{ "atspi_max_depth", "25", "Maximum UI tree traversal depth (AT-SPI).", OPT_INT },
+	{ "atspi_max_elements", "512", "Maximum number of elements to collect (AT-SPI).", OPT_INT },
 
 	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
 	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },

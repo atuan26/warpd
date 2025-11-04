@@ -5,6 +5,7 @@ atspi-2` -pthread -L/usr/X11R6/lib -lm `pkg-config --libs glib-2.0 gobject-2.0
 atk-bridge-2.0 atspi-2`
 */
 #include "atspi-detector.h"
+#include "../../platform.h"
 #include <at-spi-2.0/atspi/atspi.h>
 #include <glib-2.0/glib.h>
 #include <glib.h>
@@ -13,7 +14,12 @@ atk-bridge-2.0 atspi-2`
 #include <string.h>
 #include <unistd.h>
 
+/* Import config functions */
+extern const char *config_get(const char *key);
+extern int config_get_int(const char *key);
+
 GSList *element_list = NULL;
+static gint max_depth_reached = 0;
 
 static gchar *get_label(AtspiAccessible *accessible)
 {
@@ -67,18 +73,36 @@ static gboolean check_is_visible(AtspiStateSet *states)
 	       atspi_state_set_contains(states, ATSPI_STATE_VISIBLE);
 }
 
+/* Optimized role validation using hash table for faster lookup */
+static GHashTable *excluded_roles = NULL;
+
+static void init_excluded_roles(void)
+{
+	if (excluded_roles)
+		return;
+		
+	excluded_roles = g_hash_table_new(g_str_hash, g_str_equal);
+	g_hash_table_insert(excluded_roles, "panel", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "section", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "html container", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "frame", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "menu bar", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "tool bar", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "list", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "page tab list", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "description list", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "scroll pane", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "table", GINT_TO_POINTER(1));
+	g_hash_table_insert(excluded_roles, "grouping", GINT_TO_POINTER(1));
+}
+
 gboolean validate_role(char *role)
 {
-	if (strcmp(role, "panel") == 0 || strcmp(role, "section") == 0 ||
-	    strcmp(role, "html container") == 0 || strcmp(role, "frame") == 0 ||
-	    strcmp(role, "menu bar") == 0 || strcmp(role, "tool bar") == 0 ||
-	    strcmp(role, "list") == 0 || strcmp(role, "page tab list") == 0 ||
-	    strcmp(role, "description list") == 0 ||
-	    strcmp(role, "scroll pane") == 0 || strcmp(role, "table") == 0 ||
-	    strcmp(role, "grouping") == 0) {
+	if (!role)
 		return FALSE;
-	}
-	return TRUE;
+		
+	init_excluded_roles();
+	return !g_hash_table_contains(excluded_roles, role);
 }
 
 void print_info(ElementInfo *element)
@@ -119,13 +143,23 @@ static void collect_element_info(AtspiAccessible *accessible, gint depth,
 	}
 }
 
-static void dump_node_content(AtspiAccessible *node, gint dept)
+static void dump_node_content(AtspiAccessible *node, gint dept, gint max_depth, gint max_elements)
 {
 	AtspiAccessible *inner_node = NULL;
 	gint c;
 	gint x = -1, y = -1, w = -1, h = -1;
 
-	if (node == NULL) {
+	if (node == NULL || dept > max_depth) {
+		return;
+	}
+	
+	/* Track maximum depth actually reached */
+	if (dept > max_depth_reached) {
+		max_depth_reached = dept;
+	}
+	
+	/* Early termination if we have enough elements */
+	if (g_slist_length(element_list) >= max_elements) {
 		return;
 	}
 
@@ -147,8 +181,13 @@ static void dump_node_content(AtspiAccessible *node, gint dept)
 	collect_element_info(node, dept, x, y, w, h);
 
 	for (c = 0; c < atspi_accessible_get_child_count(node, NULL); c++) {
+		/* Early termination check */
+		if (g_slist_length(element_list) >= max_elements) {
+			break;
+		}
+		
 		inner_node = atspi_accessible_get_child_at_index(node, c, NULL);
-		dump_node_content(inner_node, dept + 1);
+		dump_node_content(inner_node, dept + 1, max_depth, max_elements);
 		g_object_unref(inner_node);
 	}
 }
@@ -261,7 +300,22 @@ void deduplicate_elements_by_position(GSList **element_list_ptr)
 
 void atspi_init_detector(void) { atspi_init(); }
 
-void free_detector_resources(void) { free_element_list(); }
+void free_detector_resources(void) 
+{ 
+	free_element_list(); 
+	
+	/* Cleanup hash table */
+	if (excluded_roles) {
+		g_hash_table_destroy(excluded_roles);
+		excluded_roles = NULL;
+	}
+}
+
+void atspi_cleanup(void)
+{
+	fprintf(stderr, "AT-SPI: Cleaning up resources\n");
+	free_detector_resources();
+}
 
 GSList *detect_elements()
 {
@@ -271,8 +325,34 @@ GSList *detect_elements()
 		return NULL;
 	}
 
-	dump_node_content(active_window, 0);
+	/* Add timing for performance monitoring */
+	GTimer *timer = g_timer_new();
+	g_timer_start(timer);
+	
+	/* Reset depth tracking */
+	max_depth_reached = 0;
+	
+	/* Get configurable values from config system */
+	gint max_depth;  /* Default value */
+	gint max_elements;  /* Default value */
+	
+	/* Use config system to get actual values */
+	max_depth = config_get_int("atspi_max_depth");
+	max_elements = config_get_int("atspi_max_elements");
+	
+	dump_node_content(active_window, 0, max_depth, max_elements);
 	g_object_unref(active_window);
+
+	g_timer_stop(timer);
+	gdouble elapsed = g_timer_elapsed(timer, NULL);
+	fprintf(stderr, "AT-SPI: Collection took %.2f ms (depth: %d/%d, elements: %d, limit: %d)\n", 
+	        elapsed * 1000, max_depth_reached, max_depth, g_slist_length(element_list), max_elements);
+	
+	/* Suggest increasing depth if we hit the limit */
+	if (max_depth_reached >= max_depth) {
+		fprintf(stderr, "AT-SPI: Hit max depth limit! Consider increasing atspi_max_depth for more hints\n");
+	}
+	g_timer_destroy(timer);
 
 	deduplicate_elements_by_position(&element_list);
 	return element_list;
