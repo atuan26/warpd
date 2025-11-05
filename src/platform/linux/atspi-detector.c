@@ -18,6 +18,14 @@ atk-bridge-2.0 atspi-2`
 extern const char *config_get(const char *key);
 extern int config_get_int(const char *key);
 
+/* Helper macros */
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 GSList *element_list = NULL;
 static gint max_depth_reached = 0;
 
@@ -71,6 +79,52 @@ static gboolean check_is_visible(AtspiStateSet *states)
 {
 	return atspi_state_set_contains(states, ATSPI_STATE_SHOWING) &&
 	       atspi_state_set_contains(states, ATSPI_STATE_VISIBLE);
+}
+
+/**
+ * Check if element is actually visible within the active window bounds
+ * This handles clipping by parent containers and window boundaries
+ */
+static gboolean check_is_actually_visible(AtspiAccessible *accessible, AtspiAccessible *window)
+{
+	gint elem_x, elem_y, elem_w, elem_h;
+	gint win_x, win_y, win_w, win_h;
+	
+	/* Get element coordinates */
+	get_rect(accessible, &elem_x, &elem_y, &elem_w, &elem_h);
+	if (elem_w <= 0 || elem_h <= 0) {
+		return FALSE;
+	}
+	
+	/* Get window coordinates */
+	get_rect(window, &win_x, &win_y, &win_w, &win_h);
+	if (win_w <= 0 || win_h <= 0) {
+		return TRUE; /* If we can't get window bounds, assume visible */
+	}
+	
+	/* Check if element is completely outside window bounds */
+	if (elem_x >= win_x + win_w ||  /* Element starts after window ends */
+	    elem_y >= win_y + win_h ||  /* Element starts below window */
+	    elem_x + elem_w <= win_x || /* Element ends before window starts */
+	    elem_y + elem_h <= win_y) { /* Element ends above window */
+		return FALSE;
+	}
+	
+	/* Check if element has reasonable overlap with window */
+	gint overlap_x = MAX(elem_x, win_x);
+	gint overlap_y = MAX(elem_y, win_y);
+	gint overlap_w = MIN(elem_x + elem_w, win_x + win_w) - overlap_x;
+	gint overlap_h = MIN(elem_y + elem_h, win_y + win_h) - overlap_y;
+	
+	/* Require at least 50% of element to be visible, or configurable minimum area */
+	gint visible_area = overlap_w * overlap_h;
+	gint total_area = elem_w * elem_h;
+	gint min_visible_area = 100;  /* Default */
+	
+	/* Get configurable minimum visible area */
+	min_visible_area = config_get_int("ui_min_visible_area");
+	
+	return (visible_area >= total_area / 2) || (visible_area >= min_visible_area);
 }
 
 /* Optimized role validation using hash table for faster lookup */
@@ -143,7 +197,7 @@ static void collect_element_info(AtspiAccessible *accessible, gint depth,
 	}
 }
 
-static void dump_node_content(AtspiAccessible *node, gint dept, gint max_depth, gint max_elements)
+static void dump_node_content(AtspiAccessible *node, gint dept, gint max_depth, gint max_elements, AtspiAccessible *window)
 {
 	AtspiAccessible *inner_node = NULL;
 	gint c;
@@ -173,6 +227,16 @@ static void dump_node_content(AtspiAccessible *node, gint dept, gint max_depth, 
 	if (!is_visible) {
 		return;
 	}
+	
+	/* Additional check for actual visibility within window bounds */
+	if (!check_is_actually_visible(node, window)) {
+		/* Uncomment for debugging clipped elements:
+		gint x, y, w, h;
+		get_rect(node, &x, &y, &w, &h);
+		fprintf(stderr, "AT-SPI: Skipping clipped element at (%d,%d) %dx%d\n", x, y, w, h);
+		*/
+		return;
+	}
 
 	get_rect(node, &x, &y, &w, &h);
 	if (x == -1 && y == -1 && w == -1 && h == -1)
@@ -187,7 +251,7 @@ static void dump_node_content(AtspiAccessible *node, gint dept, gint max_depth, 
 		}
 		
 		inner_node = atspi_accessible_get_child_at_index(node, c, NULL);
-		dump_node_content(inner_node, dept + 1, max_depth, max_elements);
+		dump_node_content(inner_node, dept + 1, max_depth, max_elements, window);
 		g_object_unref(inner_node);
 	}
 }
@@ -337,10 +401,10 @@ GSList *detect_elements()
 	gint max_elements;  /* Default value */
 	
 	/* Use config system to get actual values */
-	max_depth = config_get_int("atspi_max_depth");
-	max_elements = config_get_int("atspi_max_elements");
+	max_depth = config_get_int("ui_max_depth");
+	max_elements = config_get_int("ui_max_elements");
 	
-	dump_node_content(active_window, 0, max_depth, max_elements);
+	dump_node_content(active_window, 0, max_depth, max_elements, active_window);
 	g_object_unref(active_window);
 
 	g_timer_stop(timer);
@@ -350,7 +414,7 @@ GSList *detect_elements()
 	
 	/* Suggest increasing depth if we hit the limit */
 	if (max_depth_reached >= max_depth) {
-		fprintf(stderr, "AT-SPI: Hit max depth limit! Consider increasing atspi_max_depth for more hints\n");
+		fprintf(stderr, "AT-SPI: Hit max depth limit! Consider increasing ui_max_depth for more hints\n");
 	}
 	g_timer_destroy(timer);
 

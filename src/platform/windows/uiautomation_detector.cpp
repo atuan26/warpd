@@ -181,6 +181,53 @@ static bool get_element_rect(IUIAutomationElement* element, RECT* rect)
 }
 
 /**
+ * Check if element is actually visible within the window bounds
+ * This handles clipping by parent containers and window boundaries
+ */
+static bool check_is_actually_visible(IUIAutomationElement* element, HWND window)
+{
+    RECT elemRect, winRect;
+    
+    // Get element rectangle
+    if (!get_element_rect(element, &elemRect)) {
+        return false;
+    }
+    
+    // Get window rectangle
+    if (!GetWindowRect(window, &winRect)) {
+        return true; // If we can't get window bounds, assume visible
+    }
+    
+    // Check if element is completely outside window bounds
+    if (elemRect.left >= winRect.right ||   // Element starts after window ends
+        elemRect.top >= winRect.bottom ||   // Element starts below window
+        elemRect.right <= winRect.left ||   // Element ends before window starts
+        elemRect.bottom <= winRect.top) {   // Element ends above window
+        return false;
+    }
+    
+    // Check if element has reasonable overlap with window
+    LONG overlapLeft = max(elemRect.left, winRect.left);
+    LONG overlapTop = max(elemRect.top, winRect.top);
+    LONG overlapRight = min(elemRect.right, winRect.right);
+    LONG overlapBottom = min(elemRect.bottom, winRect.bottom);
+    
+    LONG overlapWidth = overlapRight - overlapLeft;
+    LONG overlapHeight = overlapBottom - overlapTop;
+    
+    if (overlapWidth <= 0 || overlapHeight <= 0) {
+        return false;
+    }
+    
+    // Calculate visible area
+    LONG visibleArea = overlapWidth * overlapHeight;
+    LONG totalArea = (elemRect.right - elemRect.left) * (elemRect.bottom - elemRect.top);
+    
+    // Require at least 50% of element to be visible, or minimum 100 pixels
+    return (visibleArea >= totalArea / 2) || (visibleArea >= 100);
+}
+
+/**
  * Get element name
  */
 static std::string get_element_name(IUIAutomationElement* element)
@@ -232,7 +279,7 @@ static std::string get_element_type(IUIAutomationElement* element)
 /**
  * Recursively collect interactive elements with depth limiting for performance
  */
-static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8, int current_depth = 0)
+static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8, int current_depth = 0, HWND window = NULL)
 {
     if (!element || elements.size() >= MAX_UI_ELEMENTS || max_depth <= 0)
         return;
@@ -246,13 +293,18 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
     if (is_interactive_element(element)) {
         RECT rect;
         if (get_element_rect(element, &rect)) {
+            // Check if element is actually visible within window bounds
+            if (window && !check_is_actually_visible(element, window)) {
+                // Skip elements that are clipped or outside window
+                goto process_children;
+            }
             // Filter out very small elements
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
             
-            min_width = config_get_int("uiautomation_min_width");
-            min_height = config_get_int("uiautomation_min_height");
-            min_area = config_get_int("uiautomation_min_area");
+            min_width = config_get_int("ui_min_width");
+            min_height = config_get_int("ui_min_height");
+            min_area = config_get_int("ui_min_area");
             
             if (width >= min_width && height >= min_height && 
                 (width * height) >= min_area) {
@@ -280,6 +332,7 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
         }
     }
 
+process_children:
     // Use cached tree walker to process children
     if (!g_pTreeWalker)
         return;
@@ -288,7 +341,7 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
     HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
     
     while (SUCCEEDED(hr) && child && elements.size() < MAX_UI_ELEMENTS) {
-        collect_elements(child, elements, max_depth - 1, current_depth + 1);
+        collect_elements(child, elements, max_depth - 1, current_depth + 1, window);
         
         IUIAutomationElement* nextChild = nullptr;
         hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
@@ -358,12 +411,12 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         // Get max depth from config, default to 8
         int max_depth = 8;
         try {
-            max_depth = config_get_int("uiautomation_max_depth");
+            max_depth = config_get_int("ui_max_depth");
         } catch (...) {
             // Use default if config access fails
         }
         
-        collect_elements(rootElement, elements, max_depth, 0);
+        collect_elements(rootElement, elements, max_depth, 0, hwnd);
         DWORD endTime = GetTickCount();
         rootElement->Release();
 
@@ -372,7 +425,7 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         
         /* Suggest increasing depth if we hit the limit */
         if (max_depth_reached >= max_depth) {
-            fprintf(stderr, "UI Automation: Hit max depth limit! Consider increasing uiautomation_max_depth for more hints\n");
+            fprintf(stderr, "UI Automation: Hit max depth limit! Consider increasing ui_max_depth for more hints\n");
         }
 
         if (elements.empty()) {

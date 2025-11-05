@@ -93,36 +93,26 @@ static struct {
 	{ "smart_hint_exit", "esc", "Exit smart hint mode and return to normal mode.", OPT_KEY },
 
 	/* OpenCV detection parameters (used as fallback for smart hint) */
-	{ "opencv_mode", "auto", "OpenCV detection mode: strict (buttons only), relaxed (more elements), auto (adaptive).", OPT_STRING },
-	{ "opencv_min_area", "10", "Minimum element area in pixels (strict mode).", OPT_INT },
-	{ "opencv_max_area", "260000", "Maximum element area in pixels (strict mode).", OPT_INT },
-	{ "opencv_min_width", "12", "Minimum element width in pixels (strict mode).", OPT_INT },
-	{ "opencv_min_height", "12", "Minimum element height in pixels (strict mode).", OPT_INT },
-	{ "opencv_max_width", "800", "Maximum element width in pixels (strict mode).", OPT_INT },
-	{ "opencv_max_height", "200", "Maximum element height in pixels (strict mode).", OPT_INT },
-	{ "opencv_min_aspect", "0.2", "Minimum aspect ratio (width/height, strict mode).", OPT_STRING },
-	{ "opencv_max_aspect", "10.0", "Maximum aspect ratio (width/height, strict mode).", OPT_STRING },
+	{ "opencv_min_area", "100", "Minimum element area in pixels (OpenCV).", OPT_INT },
+	{ "opencv_max_area", "300000", "Maximum element area in pixels (OpenCV).", OPT_INT },
+	{ "opencv_min_width", "8", "Minimum element width in pixels (OpenCV).", OPT_INT },
+	{ "opencv_min_height", "8", "Minimum element height in pixels (OpenCV).", OPT_INT },
+	{ "opencv_max_width", "1000", "Maximum element width in pixels (OpenCV).", OPT_INT },
+	{ "opencv_max_height", "300", "Maximum element height in pixels (OpenCV).", OPT_INT },
+	{ "opencv_min_aspect", "0.15", "Minimum aspect ratio (width/height, OpenCV).", OPT_STRING },
+	{ "opencv_max_aspect", "15.0", "Maximum aspect ratio (width/height, OpenCV).", OPT_STRING },
 
-	{ "opencv_relaxed_min_area", "150", "Minimum element area in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_max_area", "500000", "Maximum element area in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_min_width", "6", "Minimum element width in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_min_height", "6", "Minimum element height in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_max_width", "1200", "Maximum element width in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_max_height", "400", "Maximum element height in pixels (relaxed mode).", OPT_INT },
-	{ "opencv_relaxed_min_aspect", "0.1", "Minimum aspect ratio (relaxed mode).", OPT_STRING },
-	{ "opencv_relaxed_max_aspect", "20.0", "Maximum aspect ratio (relaxed mode).", OPT_STRING },
+	/* UI element detection parameters (shared across all detectors) */
+	{ "ui_max_depth", "25", "Maximum UI tree traversal depth.", OPT_INT },
+	{ "ui_max_elements", "512", "Maximum number of elements to collect.", OPT_INT },
+	{ "ui_min_width", "10", "Minimum element width in pixels.", OPT_INT },
+	{ "ui_min_height", "10", "Minimum element height in pixels.", OPT_INT },
+	{ "ui_min_area", "100", "Minimum element area in pixels.", OPT_INT },
+	{ "ui_min_visible_area", "100", "Minimum visible area in pixels for clipped elements.", OPT_INT },
 
-	{ "opencv_auto_threshold", "3", "Number of elements to trigger relaxed mode in auto mode.", OPT_INT },
-
-	/* Windows UI Automation detection parameters */
-	{ "uiautomation_min_width", "10", "Minimum element width in pixels (UI Automation).", OPT_INT },
-	{ "uiautomation_min_height", "10", "Minimum element height in pixels (UI Automation).", OPT_INT },
-	{ "uiautomation_min_area", "100", "Minimum element area in pixels (UI Automation).", OPT_INT },
-	{ "uiautomation_max_depth", "25", "Maximum UI tree traversal depth (UI Automation).", OPT_INT },
-
-	/* Linux AT-SPI detection parameters */
-	{ "atspi_max_depth", "25", "Maximum UI tree traversal depth (AT-SPI).", OPT_INT },
-	{ "atspi_max_elements", "512", "Maximum number of elements to collect (AT-SPI).", OPT_INT },
+	/* UI element overlap removal */
+	{ "ui_overlap_threshold", "10", "Minimum distance in pixels between UI elements to avoid overlap.", OPT_INT },
+	{ "ui_overlap_area_threshold", "0.7", "Maximum area overlap ratio (0.0-1.0) before removing smaller element.", OPT_STRING },
 
 	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
 	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },

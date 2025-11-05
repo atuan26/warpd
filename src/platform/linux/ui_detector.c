@@ -103,6 +103,11 @@ struct ui_detection_result *linux_detect_ui_elements(void)
 		result = opencv_detect_ui_elements();
 	}
 
+	/* Apply common overlap removal if detection succeeded */
+	if (result && result->error == 0) {
+		remove_overlapping_elements(result);
+	}
+
 	return result;
 }
 

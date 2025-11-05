@@ -35,6 +35,8 @@ struct ui_detection_result *windows_detect_ui_elements(void)
         // Check if UI Automation found enough elements
         if (result && result->error == 0 && result->count >= 3) {
             fprintf(stderr, "Windows: UI Automation found %zu elements\n", result->count);
+            /* Apply common overlap removal */
+            remove_overlapping_elements(result);
             return result;
         }
         
@@ -54,6 +56,8 @@ struct ui_detection_result *windows_detect_ui_elements(void)
         
         if (result && result->error == 0) {
             fprintf(stderr, "Windows: OpenCV found %zu elements\n", result->count);
+            /* Apply common overlap removal */
+            remove_overlapping_elements(result);
             return result;
         }
         

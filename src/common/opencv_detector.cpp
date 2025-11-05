@@ -71,40 +71,22 @@ std::vector<cv::Rect> deduplicate_rectangles(std::vector<cv::Rect> &rects)
  * Detect rectangular UI elements using edge detection
  * Cross-platform detection logic - works with any cv::Mat input
  */
-std::vector<cv::Rect> detect_rectangles(const cv::Mat &img, bool strict_mode)
+std::vector<cv::Rect> detect_rectangles(const cv::Mat &img)
 {
     cv::Mat gray, blurred, edges;
 
     // Read filter parameters from config
-    int min_area, max_area;
-    double min_aspect, max_aspect;
-    int min_width, min_height, max_width, max_height;
+    int min_area = config_get_int("opencv_min_area");
+    int max_area = config_get_int("opencv_max_area");
+    int min_width = config_get_int("opencv_min_width");
+    int min_height = config_get_int("opencv_min_height");
+    int max_width = config_get_int("opencv_max_width");
+    int max_height = config_get_int("opencv_max_height");
+    double min_aspect = atof(config_get("opencv_min_aspect"));
+    double max_aspect = atof(config_get("opencv_max_aspect"));
 
-    if (strict_mode) {
-        // Strict mode: Read from opencv_* config options
-        min_area = config_get_int("opencv_min_area");
-        max_area = config_get_int("opencv_max_area");
-        min_width = config_get_int("opencv_min_width");
-        min_height = config_get_int("opencv_min_height");
-        max_width = config_get_int("opencv_max_width");
-        max_height = config_get_int("opencv_max_height");
-        min_aspect = atof(config_get("opencv_min_aspect"));
-        max_aspect = atof(config_get("opencv_max_aspect"));
-
-        fprintf(stderr, "\n=== OpenCV Strict Mode Config ===\n");
-    } else {
-        // Relaxed mode: Read from opencv_relaxed_* config options
-        min_area = config_get_int("opencv_relaxed_min_area");
-        max_area = config_get_int("opencv_relaxed_max_area");
-        min_width = config_get_int("opencv_relaxed_min_width");
-        min_height = config_get_int("opencv_relaxed_min_height");
-        max_width = config_get_int("opencv_relaxed_max_width");
-        max_height = config_get_int("opencv_relaxed_max_height");
-        min_aspect = atof(config_get("opencv_relaxed_min_aspect"));
-        max_aspect = atof(config_get("opencv_relaxed_max_aspect"));
-
-        fprintf(stderr, "\n=== OpenCV Relaxed Mode Config ===\n");
-    }
+    fprintf(stderr, "OpenCV: Using config - area: %d-%d, size: %dx%d to %dx%d, aspect: %.2f-%.2f\n",
+            min_area, max_area, min_width, min_height, max_width, max_height, min_aspect, max_aspect);
 
     // Step 1: Convert to grayscale
     cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
