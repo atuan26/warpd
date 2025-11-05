@@ -1,6 +1,6 @@
 .PHONY: rel all install clean
 
-CFILES=$(shell find src/*.c)
+CFILES=$(shell find src/*.c src/common/*.c)
 OBJCFILES=$(shell find src/platform/macos -name '*.m')
 CXXFILES=src/common/opencv_detector.cpp src/platform/macos/opencv_detector.cpp
 OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o)

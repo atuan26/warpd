@@ -148,10 +148,6 @@ struct ui_detection_result *opencv_detect_ui_elements(void)
         return NULL;
 
     try {
-        // Get detection mode from config
-        const char *mode = config_get("opencv_mode");
-        int threshold = config_get_int("opencv_auto_threshold");
-
         const char *backend = "Unknown";
 #ifdef WARPD_X
         if (dpy) backend = "X11";
@@ -163,9 +159,6 @@ struct ui_detection_result *opencv_detect_ui_elements(void)
         fprintf(stderr, "\n");
         fprintf(stderr, "========================================\n");
         fprintf(stderr, "  OpenCV UI Detection Debug Output (%s)\n", backend);
-        fprintf(stderr, "========================================\n");
-        fprintf(stderr, "Mode: %s\n", mode);
-        fprintf(stderr, "Auto threshold: %d elements\n", threshold);
         fprintf(stderr, "========================================\n");
 
         // Capture screenshot
@@ -179,33 +172,8 @@ struct ui_detection_result *opencv_detect_ui_elements(void)
 
         fprintf(stderr, "\nStep 0: Captured %s screenshot (%dx%d)\n", backend, screenshot.cols, screenshot.rows);
 
-        std::vector<cv::Rect> rects;
-
-        if (strcmp(mode, "strict") == 0) {
-            // Strict mode only
-            fprintf(stderr, "\n>>> Running in STRICT mode only <<<\n");
-            rects = detect_rectangles(screenshot, true);
-
-        } else if (strcmp(mode, "relaxed") == 0) {
-            // Relaxed mode only
-            fprintf(stderr, "\n>>> Running in RELAXED mode only <<<\n");
-            rects = detect_rectangles(screenshot, false);
-
-        } else {
-            // Auto mode (default): Try strict first, fall back to relaxed
-            fprintf(stderr, "\n>>> Running in AUTO mode <<<\n");
-            fprintf(stderr, ">>> Pass 1: Trying STRICT mode <<<\n");
-            rects = detect_rectangles(screenshot, true);
-
-            if ((int)rects.size() < threshold) {
-                fprintf(stderr, "\n>>> Pass 2: Found %zu elements (< %d), switching to RELAXED mode <<<\n",
-                        rects.size(), threshold);
-                rects = detect_rectangles(screenshot, false);
-            } else {
-                fprintf(stderr, "\n>>> Pass 1: Found %zu elements (>= %d), staying in STRICT mode <<<\n",
-                        rects.size(), threshold);
-            }
-        }
+        // Detect rectangles using OpenCV
+        std::vector<cv::Rect> rects = detect_rectangles(screenshot);
 
         fprintf(stderr, "\n");
 

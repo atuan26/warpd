@@ -30,7 +30,9 @@ extern int config_get_int(const char *key);
 
 // Global UI Automation objects
 static IUIAutomation* g_pAutomation = nullptr;
+static IUIAutomationTreeWalker* g_pTreeWalker = nullptr;
 static bool g_initialized = false;
+static int max_depth_reached = 0;
 
 /**
  * Initialize UI Automation
@@ -51,6 +53,15 @@ static bool initialize_uiautomation()
         return false;
     }
 
+    // Cache the tree walker for better performance
+    hr = g_pAutomation->get_ControlViewWalker(&g_pTreeWalker);
+    if (FAILED(hr)) {
+        g_pAutomation->Release();
+        g_pAutomation = nullptr;
+        CoUninitialize();
+        return false;
+    }
+
     g_initialized = true;
     return true;
 }
@@ -61,6 +72,10 @@ static bool initialize_uiautomation()
 static void cleanup_uiautomation()
 {
     if (g_initialized) {
+        if (g_pTreeWalker) {
+            g_pTreeWalker->Release();
+            g_pTreeWalker = nullptr;
+        }
         if (g_pAutomation) {
             g_pAutomation->Release();
             g_pAutomation = nullptr;
@@ -88,7 +103,7 @@ static std::string bstr_to_utf8(BSTR bstr)
 }
 
 /**
- * Check if element is interactive
+ * Check if element is interactive (optimized version)
  */
 static bool is_interactive_element(IUIAutomationElement* element)
 {
@@ -100,7 +115,7 @@ static bool is_interactive_element(IUIAutomationElement* element)
     if (FAILED(hr))
         return false;
 
-    // Check for interactive control types
+    // Check for obviously interactive control types first (fastest path)
     switch (controlType) {
         case UIA_ButtonControlTypeId:
         case UIA_CheckBoxControlTypeId:
@@ -113,20 +128,28 @@ static bool is_interactive_element(IUIAutomationElement* element)
         case UIA_SliderControlTypeId:
         case UIA_SpinnerControlTypeId:
         case UIA_TabItemControlTypeId:
+            return true;
         case UIA_TextControlTypeId:
         case UIA_TreeItemControlTypeId:
-            return true;
+            // These might be interactive, check enabled state
+            break;
         default:
+            // For other types, we need to check patterns
             break;
     }
 
-    // Check if element is enabled and has patterns that indicate interactivity
+    // Check if element is enabled (required for interactivity)
     BOOL isEnabled = FALSE;
     hr = element->get_CurrentIsEnabled(&isEnabled);
     if (FAILED(hr) || !isEnabled)
         return false;
 
-    // Check for invoke pattern (clickable)
+    // For text and tree items, being enabled is enough
+    if (controlType == UIA_TextControlTypeId || controlType == UIA_TreeItemControlTypeId)
+        return true;
+
+    // For other types, check for interaction patterns (but limit to most common ones)
+    // Check for invoke pattern first (most common)
     IUIAutomationInvokePattern* invokePattern = nullptr;
     hr = element->GetCurrentPattern(UIA_InvokePatternId, (IUnknown**)&invokePattern);
     if (SUCCEEDED(hr) && invokePattern) {
@@ -134,19 +157,11 @@ static bool is_interactive_element(IUIAutomationElement* element)
         return true;
     }
 
-    // Check for selection item pattern (selectable)
+    // Only check other patterns if invoke pattern failed
     IUIAutomationSelectionItemPattern* selectionPattern = nullptr;
     hr = element->GetCurrentPattern(UIA_SelectionItemPatternId, (IUnknown**)&selectionPattern);
     if (SUCCEEDED(hr) && selectionPattern) {
         selectionPattern->Release();
-        return true;
-    }
-
-    // Check for toggle pattern (toggleable)
-    IUIAutomationTogglePattern* togglePattern = nullptr;
-    hr = element->GetCurrentPattern(UIA_TogglePatternId, (IUnknown**)&togglePattern);
-    if (SUCCEEDED(hr) && togglePattern) {
-        togglePattern->Release();
         return true;
     }
 
@@ -163,6 +178,53 @@ static bool get_element_rect(IUIAutomationElement* element, RECT* rect)
 
     HRESULT hr = element->get_CurrentBoundingRectangle(rect);
     return SUCCEEDED(hr) && rect->right > rect->left && rect->bottom > rect->top;
+}
+
+/**
+ * Check if element is actually visible within the window bounds
+ * This handles clipping by parent containers and window boundaries
+ */
+static bool check_is_actually_visible(IUIAutomationElement* element, HWND window)
+{
+    RECT elemRect, winRect;
+    
+    // Get element rectangle
+    if (!get_element_rect(element, &elemRect)) {
+        return false;
+    }
+    
+    // Get window rectangle
+    if (!GetWindowRect(window, &winRect)) {
+        return true; // If we can't get window bounds, assume visible
+    }
+    
+    // Check if element is completely outside window bounds
+    if (elemRect.left >= winRect.right ||   // Element starts after window ends
+        elemRect.top >= winRect.bottom ||   // Element starts below window
+        elemRect.right <= winRect.left ||   // Element ends before window starts
+        elemRect.bottom <= winRect.top) {   // Element ends above window
+        return false;
+    }
+    
+    // Check if element has reasonable overlap with window
+    LONG overlapLeft = max(elemRect.left, winRect.left);
+    LONG overlapTop = max(elemRect.top, winRect.top);
+    LONG overlapRight = min(elemRect.right, winRect.right);
+    LONG overlapBottom = min(elemRect.bottom, winRect.bottom);
+    
+    LONG overlapWidth = overlapRight - overlapLeft;
+    LONG overlapHeight = overlapBottom - overlapTop;
+    
+    if (overlapWidth <= 0 || overlapHeight <= 0) {
+        return false;
+    }
+    
+    // Calculate visible area
+    LONG visibleArea = overlapWidth * overlapHeight;
+    LONG totalArea = (elemRect.right - elemRect.left) * (elemRect.bottom - elemRect.top);
+    
+    // Require at least 50% of element to be visible, or minimum 100 pixels
+    return (visibleArea >= totalArea / 2) || (visibleArea >= 100);
 }
 
 /**
@@ -215,33 +277,34 @@ static std::string get_element_type(IUIAutomationElement* element)
 }
 
 /**
- * Recursively collect interactive elements
+ * Recursively collect interactive elements with depth limiting for performance
  */
-static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements)
+static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8, int current_depth = 0, HWND window = NULL)
 {
-    if (!element || elements.size() >= MAX_UI_ELEMENTS)
+    if (!element || elements.size() >= MAX_UI_ELEMENTS || max_depth <= 0)
         return;
+    
+    // Track maximum depth actually reached
+    if (current_depth > max_depth_reached) {
+        max_depth_reached = current_depth;
+    }
 
     // Check if current element is interactive
     if (is_interactive_element(element)) {
         RECT rect;
         if (get_element_rect(element, &rect)) {
+            // Check if element is actually visible within window bounds
+            if (window && !check_is_actually_visible(element, window)) {
+                // Skip elements that are clipped or outside window
+                goto process_children;
+            }
             // Filter out very small elements
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
             
-            // Use default values if config functions fail
-            int min_width = 10;
-            int min_height = 10;
-            int min_area = 100;
-            
-            try {
-                min_width = config_get_int("uiautomation_min_width");
-                min_height = config_get_int("uiautomation_min_height");
-                min_area = config_get_int("uiautomation_min_area");
-            } catch (...) {
-                // Use defaults if config access fails
-            }
+            min_width = config_get_int("ui_min_width");
+            min_height = config_get_int("ui_min_height");
+            min_area = config_get_int("ui_min_area");
             
             if (width >= min_width && height >= min_height && 
                 (width * height) >= min_area) {
@@ -269,30 +332,25 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
         }
     }
 
-    // Use tree walker to process children
-    if (!g_pAutomation)
-        return;
-
-    IUIAutomationTreeWalker* walker = nullptr;
-    HRESULT hr = g_pAutomation->get_ControlViewWalker(&walker);
-    if (FAILED(hr) || !walker)
+process_children:
+    // Use cached tree walker to process children
+    if (!g_pTreeWalker)
         return;
 
     IUIAutomationElement* child = nullptr;
-    hr = walker->GetFirstChildElement(element, &child);
+    HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
     
     while (SUCCEEDED(hr) && child && elements.size() < MAX_UI_ELEMENTS) {
-        collect_elements(child, elements);
+        collect_elements(child, elements, max_depth - 1, current_depth + 1, window);
         
         IUIAutomationElement* nextChild = nullptr;
-        hr = walker->GetNextSiblingElement(child, &nextChild);
+        hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
         child->Release();
         child = nextChild;
     }
     
     if (child)
         child->Release();
-    walker->Release();
 }
 
 // C interface functions
@@ -343,10 +401,32 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
             return result;
         }
 
-        // Collect interactive elements
+        // Collect interactive elements with timing
         std::vector<struct ui_element> elements;
-        collect_elements(rootElement, elements);
+        DWORD startTime = GetTickCount();
+        
+        // Reset depth tracking
+        max_depth_reached = 0;
+        
+        // Get max depth from config, default to 8
+        int max_depth = 8;
+        try {
+            max_depth = config_get_int("ui_max_depth");
+        } catch (...) {
+            // Use default if config access fails
+        }
+        
+        collect_elements(rootElement, elements, max_depth, 0, hwnd);
+        DWORD endTime = GetTickCount();
         rootElement->Release();
+
+        fprintf(stderr, "UI Automation: Collection took %lu ms (depth: %d/%d, elements: %zu, limit: %d)\n", 
+                endTime - startTime, max_depth_reached, max_depth, elements.size(), MAX_UI_ELEMENTS);
+        
+        /* Suggest increasing depth if we hit the limit */
+        if (max_depth_reached >= max_depth) {
+            fprintf(stderr, "UI Automation: Hit max depth limit! Consider increasing ui_max_depth for more hints\n");
+        }
 
         if (elements.empty()) {
             result->error = -4;
@@ -400,6 +480,15 @@ void uiautomation_free_ui_elements(struct ui_detection_result *result)
     }
 
     free(result);
+}
+
+/**
+ * Cleanup UI Automation resources (called on exit)
+ */
+void uiautomation_cleanup(void)
+{
+    fprintf(stderr, "UI Automation: Cleaning up resources\n");
+    cleanup_uiautomation();
 }
 
 } // extern "C"

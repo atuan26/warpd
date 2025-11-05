@@ -18,6 +18,7 @@ typedef struct ElementInfo {
 void atspi_init_detector(void);
 GSList *detect_elements();
 void free_detector_resources(void);
+void atspi_cleanup(void);
 void print_info(ElementInfo *element);
 
 #endif

@@ -124,14 +124,8 @@ struct ui_detection_result *opencv_detect_ui_elements(void)
             return result;
         }
 
-        // Try strict mode first
-        std::vector<cv::Rect> rectangles = detect_rectangles(screenshot, true);
-        
-        // If strict mode finds too few elements, try relaxed mode
-        if (rectangles.size() < 3) {
-            fprintf(stderr, "OpenCV: Strict mode found %zu elements, trying relaxed mode\n", rectangles.size());
-            rectangles = detect_rectangles(screenshot, false);
-        }
+        // Detect rectangles using OpenCV
+        std::vector<cv::Rect> rectangles = detect_rectangles(screenshot);
 
         // Convert to ui_elements
         return rectangles_to_ui_elements(rectangles, "Windows OpenCV");

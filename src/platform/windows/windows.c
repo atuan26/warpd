@@ -1,5 +1,6 @@
 
 #define UNICODE 1
+#include <stdlib.h>
 #include "windows.h"
 
 static int keyboard_grabbed = 0;
@@ -445,10 +446,16 @@ static void commit()
 extern struct ui_detection_result *windows_detect_ui_elements(void);
 extern void windows_free_ui_elements(struct ui_detection_result *result);
 
+/* UI Automation cleanup function */
+extern void uiautomation_cleanup(void);
+
 void platform_run(int (*main)(struct platform *platform))
 {
 	SetWindowsHookEx(WH_KEYBOARD_LL, keyboardHook, GetModuleHandle(NULL), 0);
 	wn_init_screen();
+	
+	/* Register cleanup function to be called on exit */
+	atexit(uiautomation_cleanup);
 
 	static struct platform platform;
 

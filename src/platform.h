@@ -58,6 +58,9 @@ struct ui_detection_result {
 	char error_msg[256];     /* Human-readable error message */
 };
 
+/* Common overlap removal function for all detectors */
+void remove_overlapping_elements(struct ui_detection_result *result);
+
 struct screen;
 typedef struct screen *screen_t;
 
