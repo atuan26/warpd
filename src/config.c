@@ -16,6 +16,7 @@ static struct {
 } options[] = {
 	{ "hint_activation_key", "A-M-x", "Activates hint mode.", OPT_KEY },
 	{ "hint2_activation_key", "A-M-X", "Activate two pass hint mode.", OPT_KEY },
+	{ "smart_hint_activation_key", "A-M-f", "Activate smart hint mode (element-based detection).", OPT_KEY },
 	{ "grid_activation_key", "A-M-g", "Activates grid mode and allows for further manipulation of the pointer using the mapped keys.", OPT_KEY },
 	{ "history_activation_key", "A-M-h", "Activate history mode.", OPT_KEY },
 	{ "screen_activation_key", "A-M-s", "Activate (s)creen selection mode.", OPT_KEY },

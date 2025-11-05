@@ -2,6 +2,7 @@
 static const char *activation_keys[] = {
 	"activation_key",
 	"hint_activation_key",
+	"smart_hint_activation_key",
 	"grid_activation_key",
 	"hint_oneshot_key",
 	"screen_activation_key",
@@ -53,6 +54,8 @@ void daemon_loop(const char *config_path)
 			mode = MODE_GRID;
 		else if (config_input_match(ev, "hint_activation_key"))
 			mode = MODE_HINT;
+		else if (config_input_match(ev, "smart_hint_activation_key"))
+			mode = MODE_SMART_HINT;
 		else if (config_input_match(ev, "hint2_activation_key"))
 			mode = MODE_HINT2;
 		else if (config_input_match(ev, "screen_activation_key"))
