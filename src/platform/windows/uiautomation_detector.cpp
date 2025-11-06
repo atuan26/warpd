@@ -27,6 +27,7 @@ extern int config_get_int(const char *key);
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <algorithm>
 
 // Global UI Automation objects
 static IUIAutomation* g_pAutomation = nullptr;
@@ -207,10 +208,10 @@ static bool check_is_actually_visible(IUIAutomationElement* element, HWND window
     }
     
     // Check if element has reasonable overlap with window
-    LONG overlapLeft = max(elemRect.left, winRect.left);
-    LONG overlapTop = max(elemRect.top, winRect.top);
-    LONG overlapRight = min(elemRect.right, winRect.right);
-    LONG overlapBottom = min(elemRect.bottom, winRect.bottom);
+    LONG overlapLeft = std::max(elemRect.left, winRect.left);
+    LONG overlapTop = std::max(elemRect.top, winRect.top);
+    LONG overlapRight = std::min(elemRect.right, winRect.right);
+    LONG overlapBottom = std::min(elemRect.bottom, winRect.bottom);
     
     LONG overlapWidth = overlapRight - overlapLeft;
     LONG overlapHeight = overlapBottom - overlapTop;
@@ -302,9 +303,9 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
             
-            min_width = config_get_int("ui_min_width");
-            min_height = config_get_int("ui_min_height");
-            min_area = config_get_int("ui_min_area");
+            int min_width = config_get_int("ui_min_width");
+            int min_height = config_get_int("ui_min_height");
+            int min_area = config_get_int("ui_min_area");
             
             if (width >= min_width && height >= min_height && 
                 (width * height) >= min_area) {

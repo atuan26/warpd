@@ -33,12 +33,16 @@ endif
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
-all: $(OBJFILES)
+all: $(OBJFILES) src/windows/icon.res
 	-mkdir -p bin
-	$(CXX) -o bin/warpd.exe $(OBJFILES) $(LDFLAGS)
+	$(CXX) -o bin/warpd.exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
+
+src/windows/icon.res: src/windows/icon.rc
+	windres $< -O coff -o $@
 
 clean:
 	-rm -f $(OBJFILES)
+	-rm -f src/windows/icon.res
 	-rm -rf bin
 
 .PHONY: all clean
