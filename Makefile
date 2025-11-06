@@ -1,9 +1,19 @@
-VERSION=1.3.5
+VERSION=2.0.0
 PREFIX?=/usr/local
 COMMITSTR=$(shell commit=$$(git rev-parse --short HEAD 2> /dev/null) && echo " (built from: $$commit)")
 
-ifeq ($(shell uname -s), Darwin)
-	PLATFORM?=macos
+ifndef PLATFORM
+	UNAME_S := $(shell uname -s 2>/dev/null)
+	ifeq ($(UNAME_S), Darwin)
+		PLATFORM := macos
+	else ifeq ($(UNAME_S), Linux)
+		PLATFORM := linux
+	else ifneq ($(OS),)
+		ifeq ($(OS), Windows_NT)
+			PLATFORM := windows
+		endif
+	endif
+	PLATFORM ?= linux
 endif
 
 ifeq ($(PLATFORM), macos)

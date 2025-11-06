@@ -2,6 +2,7 @@
  * warpd - A modal keyboard-driven pointing system.
  *
  * © 2019 Raheman Vaiya (see: LICENSE).
+ * Fork maintained by atuan26.
  */
 
 #include "../warpd.h"
@@ -20,6 +21,7 @@ static char config_dir[1024];
 static const char *icon_menu_items[] = {
 	"edit config",
 	"help",
+	"about",
 	"exit",
 };
 
@@ -59,7 +61,17 @@ static LRESULT CALLBACK IconWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARA
 
 		case WM_COMMAND:
 			if (!strcmp(icon_menu_items[wParam], "help")) {
-				ShellExecute(NULL, "open", "https://github.com/rvaiya/warpd/blob/master/warpd.1.md", NULL, NULL, SW_SHOWNORMAL);
+				ShellExecute(NULL, "open", "https://github.com/atuan26/warpd/blob/master/warpd.1.md", NULL, NULL, SW_SHOWNORMAL);
+			} else if (!strcmp(icon_menu_items[wParam], "about")) {
+				char about_msg[512];
+				snprintf(about_msg, sizeof(about_msg), 
+					"warpd %s\n\n"
+					"A modal keyboard-driven pointing system\n\n"
+					"Repository: https://github.com/atuan26/warpd\n"
+					"Config: %s\n\n"
+					"Maintained by atuan26", 
+					VERSION, config_path);
+				MessageBox(NULL, about_msg, "About warpd", MB_OK | MB_ICONINFORMATION);
 			} else if (!strcmp(icon_menu_items[wParam], "exit")) {
 				NOTIFYICONDATA nic = {0};
 				nic.cbSize = sizeof(NOTIFYICONDATA);
@@ -68,8 +80,7 @@ static LRESULT CALLBACK IconWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARA
 				Shell_NotifyIconA(NIM_DELETE, &nic);
 				exit(0);
 			} else if (!strcmp(icon_menu_items[wParam], "edit config")) {
-				//TODO: make this path globall accessible
-				ShellExecute(NULL, "edit", config_path, NULL, NULL, SW_SHOWNORMAL);
+				ShellExecute(NULL, "open", config_path, NULL, NULL, SW_SHOWNORMAL);
 			}
 			break;
 	}
@@ -100,7 +111,7 @@ static void init_icon(HICON icon)
 
 	NOTIFYICONDATA nic;
 
-	strcpy(nic.szTip, "warpd");
+	snprintf(nic.szTip, sizeof(nic.szTip), "warpd %s - Modal keyboard pointing", VERSION);
 	nic.hIcon = icon;
 	nic.cbSize = sizeof(NOTIFYICONDATA);
 	nic.hWnd = icon_wnd;

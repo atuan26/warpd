@@ -116,6 +116,7 @@ static void print_usage()
 
 		"  --hint                      Start warpd in hint mode and exit after the end of the session.\n"
 		"  --hint2                     Start warpd in two pass hint mode and exit after the end of the session.\n"
+		"  --smart-hint                Start warpd in smart hint mode and exit after the end of the session.\n"
 		"  --normal                    Start warpd in normal mode and exit after the end of the session.\n"
 		"  --grid                      Start warpd in hint grid and exit after the end of the session.\n"
 		"  --screen                    Start warpd in screen selection mode and exit after the end of the session.\n"
@@ -222,6 +223,7 @@ int main(int argc, char *argv[])
 		{"grid", no_argument, NULL, 258},
 		{"normal", no_argument, NULL, 259},
 		{"hint2", no_argument, NULL, 261},
+		{"smart-hint", no_argument, NULL, 269},
 		{"history", no_argument, NULL, 262},
 		{"list-options", no_argument, NULL, 260},
 		{"oneshot", no_argument, NULL, 263},
@@ -271,6 +273,9 @@ int main(int argc, char *argv[])
 				break;
 			case 268:
 				mode = MODE_SCREEN_SELECTION;
+				break;
+			case 269:
+				mode = MODE_SMART_HINT;
 				break;
 			case 263:
 				if (!mode)

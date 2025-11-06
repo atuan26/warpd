@@ -26,6 +26,8 @@ Mode Flags:
 
 	*--hint2*: Run warpd in 2 stage hint mode.
 
+	*--smart-hint*: Run warpd in smart hint mode (element-based detection).
+
 	*--grid*: Run warpd in grid mode.
 
 	*--normal*: Run warpd in normal mode.
@@ -98,6 +100,22 @@ the author's opinion) superior to grid mode for quickly pinpointing elements.
 
 For finer movements, a two phase hint mode can be activated by pressing 'X'
 within normal mode.
+
+## Smart Hint Mode ('f' within normal mode)
+
+This mode automatically detects interactive UI elements (buttons, links, input
+fields) and generates hints for direct navigation. It uses platform-native
+accessibility APIs (AT-SPI on Linux, Accessibility APIs on macOS, UI Automation
+on Windows) for accurate detection, with OpenCV-based visual detection as a
+fallback for unsupported applications.
+
+Smart hint mode provides more precise targeting than regular hint mode by
+focusing only on interactive elements rather than covering the entire screen
+with hints.
+
+*Note:* Requires applications that support accessibility APIs for optimal
+performance. OpenCV fallback provides broader compatibility but may be less
+precise.
 
 ## History Mode (';' within normal mode)
 

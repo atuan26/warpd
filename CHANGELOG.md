@@ -1,3 +1,11 @@
+# v2.0.0
+- Add Smart Hint Mode - intelligent UI element detection inspired by Vimium
+- Implement platform-native accessibility API detection (AT-SPI, Accessibility APIs, UI Automation)
+- Add OpenCV-based visual detection as fallback for unsupported applications
+- Cross-platform support for element-based navigation (Linux, macOS, Windows)
+- New `f` key binding in Normal Mode to activate Smart Hint
+- Enhanced UI detection with dual-tier approach for maximum compatibility
+
 # v1.3.5
 - macos: Various input bugfixes
 - macos: Introduce launchd service (the user should no longer run warpd explicitly)
