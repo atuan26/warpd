@@ -110,6 +110,7 @@ static struct {
 	{ "ui_min_height", "10", "Minimum element height in pixels.", OPT_INT },
 	{ "ui_min_area", "100", "Minimum element area in pixels.", OPT_INT },
 	{ "ui_min_visible_area", "100", "Minimum visible area in pixels for clipped elements.", OPT_INT },
+	{ "ui_detection_timeout", "5000", "Maximum time in milliseconds for UI detection (stops traversal early).", OPT_INT },
 
 	/* UI element overlap removal */
 	{ "ui_overlap_threshold", "10", "Minimum distance in pixels between UI elements to avoid overlap.", OPT_INT },

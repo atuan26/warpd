@@ -53,7 +53,7 @@ all: $(OBJFILES) src/windows/icon.res
 	$(CXX) -o bin/warpd.exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
 
 src/windows/icon.res: src/windows/icon.rc
-	windres -i $< -o $@ --output-format=coff
+	windres $< -O coff -o $@
 
 clean:
 	-rm -f $(OBJFILES)

@@ -32,8 +32,21 @@ extern int config_get_int(const char *key);
 // Global UI Automation objects
 static IUIAutomation* g_pAutomation = nullptr;
 static IUIAutomationTreeWalker* g_pTreeWalker = nullptr;
+static IUIAutomationCacheRequest* g_pCacheRequest = nullptr;
 static bool g_initialized = false;
 static int max_depth_reached = 0;
+
+// Timing utility for debug logs with actual time
+static void log_with_time(const char* format, ...) {
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    fprintf(stderr, "[%02d:%02d:%02d.%03d] ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+}
 
 /**
  * Initialize UI Automation
@@ -63,6 +76,24 @@ static bool initialize_uiautomation()
         return false;
     }
 
+    // Create cache request for better performance
+    // Cache the properties we need to avoid repeated cross-process calls
+    hr = g_pAutomation->CreateCacheRequest(&g_pCacheRequest);
+    if (SUCCEEDED(hr) && g_pCacheRequest) {
+        g_pCacheRequest->AddProperty(UIA_ControlTypePropertyId);
+        g_pCacheRequest->AddProperty(UIA_IsEnabledPropertyId);
+        g_pCacheRequest->AddProperty(UIA_BoundingRectanglePropertyId);
+        g_pCacheRequest->AddProperty(UIA_NamePropertyId);
+        g_pCacheRequest->put_TreeScope((TreeScope)(TreeScope_Element | TreeScope_Children));
+        
+        IUIAutomationCondition* pCondition = nullptr;
+        hr = g_pAutomation->get_ControlViewCondition(&pCondition);
+        if (SUCCEEDED(hr) && pCondition) {
+            g_pCacheRequest->put_TreeFilter(pCondition);
+            pCondition->Release();
+        }
+    }
+
     g_initialized = true;
     return true;
 }
@@ -73,6 +104,10 @@ static bool initialize_uiautomation()
 static void cleanup_uiautomation()
 {
     if (g_initialized) {
+        if (g_pCacheRequest) {
+            g_pCacheRequest->Release();
+            g_pCacheRequest = nullptr;
+        }
         if (g_pTreeWalker) {
             g_pTreeWalker->Release();
             g_pTreeWalker = nullptr;
@@ -303,13 +338,171 @@ static std::string get_element_type(IUIAutomationElement* element)
     }
 }
 
+// Global counters for performance tracking
+static int g_nodes_visited = 0;
+static DWORD g_last_progress_time = 0;
+static DWORD g_traversal_start_time = 0;
+static int g_max_traversal_time_ms = 5000;  // 5 second timeout
+static bool g_timeout_triggered = false;  // Flag to stop all recursion
+
 /**
- * Recursively collect interactive elements with depth limiting for performance
+ * Collect interactive elements using breadth-first search for better early stopping
+ * 
+ * PERFORMANCE NOTE: UI Automation tree traversal is very slow on complex pages (browsers).
+ * Breadth-first search finds visible elements faster than depth-first.
  */
-static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, int max_depth = 8, int current_depth = 0, HWND window = NULL)
+static void collect_elements_bfs(IUIAutomationElement* rootElement, std::vector<struct ui_element>& elements,
+                                 int max_depth, HWND window, int min_width, int min_height, int min_area)
 {
-    if (!element || elements.size() >= MAX_UI_ELEMENTS || max_depth <= 0)
+    if (!rootElement || !g_pTreeWalker)
         return;
+    
+    // Use a queue for breadth-first traversal
+    struct QueueItem {
+        IUIAutomationElement* element;
+        int depth;
+    };
+    std::vector<QueueItem> queue;
+    queue.push_back({rootElement, 0});
+    rootElement->AddRef();
+    
+    int target_elements = 200;  // Stop after finding enough elements
+    
+    while (!queue.empty() && !g_timeout_triggered) {
+        QueueItem item = queue.front();
+        queue.erase(queue.begin());
+        
+        IUIAutomationElement* element = item.element;
+        int depth = item.depth;
+        
+        g_nodes_visited++;
+        
+        // Check timeout every 50 nodes
+        if (g_nodes_visited % 50 == 0) {
+            DWORD now = GetTickCount();
+            DWORD elapsed = now - g_traversal_start_time;
+            
+            if (now - g_last_progress_time > 2000) {
+                log_with_time("UI Automation: Progress - visited %d nodes, found %zu elements, depth %d/%d, elapsed %lu ms\n", 
+                             g_nodes_visited, elements.size(), depth, max_depth, elapsed);
+                g_last_progress_time = now;
+            }
+            
+            if (elapsed > (DWORD)g_max_traversal_time_ms && !g_timeout_triggered) {
+                g_timeout_triggered = true;
+                log_with_time("UI Automation: TIMEOUT! Stopping traversal after %lu ms (%d nodes, %zu elements)\n", 
+                             elapsed, g_nodes_visited, elements.size());
+                element->Release();
+                break;
+            }
+        }
+        
+        // Early stop if we have enough elements
+        if (elements.size() >= (size_t)target_elements) {
+            log_with_time("UI Automation: Found %zu elements (target: %d), stopping early\n", 
+                         elements.size(), target_elements);
+            element->Release();
+            break;
+        }
+        
+        // Check if current element is interactive
+        if (is_interactive_element(element)) {
+            RECT rect;
+            if (get_element_rect(element, &rect)) {
+                int width = rect.right - rect.left;
+                int height = rect.bottom - rect.top;
+                
+                if (width >= min_width && height >= min_height && (width * height) >= min_area) {
+                    if (!window || check_is_actually_visible(element, window)) {
+                        struct ui_element elem = {0};
+                        elem.x = rect.left;
+                        elem.y = rect.top;
+                        elem.w = width;
+                        elem.h = height;
+                        
+                        std::string name = get_element_name(element);
+                        std::string type = get_element_type(element);
+                        
+                        if (!name.empty()) {
+                            elem.name = (char*)malloc(name.length() + 1);
+                            strcpy(elem.name, name.c_str());
+                        } else {
+                            elem.name = nullptr;
+                        }
+                        elem.role = (char*)malloc(type.length() + 1);
+                        strcpy(elem.role, type.c_str());
+                        
+                        elements.push_back(elem);
+                        
+                        if (elements.size() >= MAX_UI_ELEMENTS) {
+                            element->Release();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add children to queue if not at max depth
+        if (depth < max_depth) {
+            IUIAutomationElement* child = nullptr;
+            HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
+            
+            while (SUCCEEDED(hr) && child) {
+                queue.push_back({child, depth + 1});
+                
+                if (depth + 1 > max_depth_reached) {
+                    max_depth_reached = depth + 1;
+                }
+                
+                IUIAutomationElement* nextChild = nullptr;
+                hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
+                child = nextChild;
+            }
+        }
+        
+        element->Release();
+    }
+    
+    // Clean up remaining queue items
+    for (auto& item : queue) {
+        item.element->Release();
+    }
+}
+
+/**
+ * Old recursive depth-first collection (kept for reference)
+ */
+static void collect_elements(IUIAutomationElement* element, std::vector<struct ui_element>& elements, 
+                            int max_depth, int current_depth, HWND window,
+                            int min_width, int min_height, int min_area)
+{
+    if (!element || elements.size() >= MAX_UI_ELEMENTS || max_depth <= 0 || g_timeout_triggered)
+        return;
+    
+    // Track nodes visited and check timeout
+    g_nodes_visited++;
+    
+    // Check timeout every 100 nodes to avoid overhead
+    if (g_nodes_visited % 100 == 0) {
+        DWORD now = GetTickCount();
+        DWORD elapsed = now - g_traversal_start_time;
+        
+        // Show progress every 2 seconds
+        if (now - g_last_progress_time > 2000) {
+            log_with_time("UI Automation: Progress - visited %d nodes, found %zu elements, depth %d/%d, elapsed %lu ms\n", 
+                         g_nodes_visited, elements.size(), current_depth, max_depth, elapsed);
+            g_last_progress_time = now;
+        }
+        
+        // Timeout check - stop if taking too long
+        if (elapsed > (DWORD)g_max_traversal_time_ms && !g_timeout_triggered) {
+            g_timeout_triggered = true;
+            log_with_time("UI Automation: TIMEOUT! Stopping all traversal after %lu ms (%d nodes, %zu elements)\n", 
+                         elapsed, g_nodes_visited, elements.size());
+            return;
+        }
+    }
     
     // Track maximum depth actually reached
     if (current_depth > max_depth_reached) {
@@ -328,10 +521,6 @@ static void collect_elements(IUIAutomationElement* element, std::vector<struct u
             // Filter out very small elements
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
-            
-            int min_width = config_get_int("ui_min_width");
-            int min_height = config_get_int("ui_min_height");
-            int min_area = config_get_int("ui_min_area");
             
             if (width >= min_width && height >= min_height && 
                 (width * height) >= min_area) {
@@ -368,7 +557,7 @@ process_children:
     HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
     
     while (SUCCEEDED(hr) && child && elements.size() < MAX_UI_ELEMENTS) {
-        collect_elements(child, elements, max_depth - 1, current_depth + 1, window);
+        collect_elements(child, elements, max_depth - 1, current_depth + 1, window, min_width, min_height, min_area);
         
         IUIAutomationElement* nextChild = nullptr;
         hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
@@ -409,7 +598,11 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
     }
 
     try {
+        log_with_time("========== UI Automation Detection Started ==========\n");
+        DWORD t0 = GetTickCount();
+        
         // Get the foreground window
+        log_with_time("UI Automation: Getting foreground window...\n");
         HWND hwnd = GetForegroundWindow();
         if (!hwnd) {
             result->error = -2;
@@ -417,8 +610,11 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
                      "No foreground window found");
             return result;
         }
+        DWORD t1 = GetTickCount();
+        log_with_time("UI Automation: Got window in %lu ms\n", t1 - t0);
 
         // Get UI Automation element for the window
+        log_with_time("UI Automation: Getting root element...\n");
         IUIAutomationElement* rootElement = nullptr;
         HRESULT hr = g_pAutomation->ElementFromHandle(hwnd, &rootElement);
         if (FAILED(hr) || !rootElement) {
@@ -427,32 +623,54 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
                      "Failed to get UI Automation element for window");
             return result;
         }
+        DWORD t2 = GetTickCount();
+        log_with_time("UI Automation: Got root element in %lu ms\n", t2 - t1);
 
-        // Collect interactive elements with timing
-        std::vector<struct ui_element> elements;
-        DWORD startTime = GetTickCount();
-        
-        // Reset depth tracking
-        max_depth_reached = 0;
-        
-        // Get max depth from config, default to 8
-        int max_depth = 8;
+        // Read config values ONCE before traversal (not in the loop!)
+        log_with_time("UI Automation: Reading config values...\n");
+        int max_depth = 10;
+        int min_width = 10;
+        int min_height = 10;
+        int min_area = 100;
+        int timeout_ms = 5000;
         try {
             max_depth = config_get_int("ui_max_depth");
+            min_width = config_get_int("ui_min_width");
+            min_height = config_get_int("ui_min_height");
+            min_area = config_get_int("ui_min_area");
+            timeout_ms = config_get_int("ui_detection_timeout");
         } catch (...) {
-            // Use default if config access fails
+            // Use defaults if config access fails
         }
+        g_max_traversal_time_ms = timeout_ms;
+        DWORD t3 = GetTickCount();
+        log_with_time("UI Automation: Config loaded (max_depth=%d, min_size=%dx%d, min_area=%d) in %lu ms\n", 
+                     max_depth, min_width, min_height, min_area, t3 - t2);
         
-        collect_elements(rootElement, elements, max_depth, 0, hwnd);
+        // Collect interactive elements with timing
+        log_with_time("UI Automation: Starting tree traversal (max_depth=%d, timeout=%dms)...\n", 
+                     max_depth, g_max_traversal_time_ms);
+        std::vector<struct ui_element> elements;
+        max_depth_reached = 0;
+        g_nodes_visited = 0;
+        g_timeout_triggered = false;  // Reset timeout flag
+        DWORD startTime = GetTickCount();
+        g_traversal_start_time = startTime;
+        g_last_progress_time = startTime;
+        
+        // Use breadth-first search for better performance (finds visible elements faster)
+        collect_elements_bfs(rootElement, elements, max_depth, hwnd, min_width, min_height, min_area);
+        
         DWORD endTime = GetTickCount();
         rootElement->Release();
 
-        fprintf(stderr, "UI Automation: Collection took %lu ms (depth: %d/%d, elements: %zu, limit: %d)\n", 
-                endTime - startTime, max_depth_reached, max_depth, elements.size(), MAX_UI_ELEMENTS);
+        log_with_time("UI Automation: Collection took %lu ms (visited %d nodes, depth: %d/%d, elements: %zu, limit: %d)%s\n", 
+                endTime - startTime, g_nodes_visited, max_depth_reached, max_depth, elements.size(), MAX_UI_ELEMENTS,
+                g_timeout_triggered ? " [STOPPED BY TIMEOUT]" : "");
         
         /* Suggest increasing depth if we hit the limit */
         if (max_depth_reached >= max_depth) {
-            fprintf(stderr, "UI Automation: Hit max depth limit! Consider increasing ui_max_depth for more hints\n");
+            log_with_time("UI Automation: Hit max depth limit! Consider increasing ui_max_depth for more hints\n");
         }
 
         if (elements.empty()) {
@@ -479,7 +697,9 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         result->count = elements.size();
         result->error = 0;
 
-        fprintf(stderr, "UI Automation: Detected %zu interactive elements\n", result->count);
+        DWORD totalTime = GetTickCount() - t0;
+        log_with_time("UI Automation: Detected %zu interactive elements (total time: %lu ms)\n", result->count, totalTime);
+        log_with_time("========== UI Automation Detection Completed ==========\n\n");
 
     } catch (...) {
         result->error = -6;
@@ -514,7 +734,7 @@ void uiautomation_free_ui_elements(struct ui_detection_result *result)
  */
 void uiautomation_cleanup(void)
 {
-    fprintf(stderr, "UI Automation: Cleaning up resources\n");
+    log_with_time("UI Automation: Cleaning up resources\n");
     cleanup_uiautomation();
 }
 
