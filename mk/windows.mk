@@ -1,9 +1,24 @@
 #CC=cl.exe
 CC=x86_64-w64-mingw32-gcc
 CXX=x86_64-w64-mingw32-g++
-CFLAGS+=-DWINDOWS -mwindows
-CXXFLAGS+=-DWINDOWS -mwindows
-LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -mwindows
+
+# VERSION=2.0.0
+# COMMITSTR=$(shell commit=$$(git rev-parse --short HEAD 2> /dev/null) && echo " (built from: $$commit)")
+
+CFLAGS+=-DWINDOWS -DVERSION='"v$(VERSION)$(COMMITSTR)"'
+CXXFLAGS+=-DWINDOWS -DVERSION='"v$(VERSION)$(COMMITSTR)"'
+LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++
+
+# Debug mode: show console for logs
+ifdef DEBUG
+CFLAGS+=-DDEBUG -g
+CXXFLAGS+=-DDEBUG -g
+LDFLAGS+=-mconsole
+else
+CFLAGS+=-mwindows
+CXXFLAGS+=-mwindows
+LDFLAGS+=-mwindows
+endif
 
 CXXFLAGS+=-I/mingw64/include/opencv4
 LDFLAGS+=-lopencv_imgproc -lopencv_core
@@ -38,7 +53,7 @@ all: $(OBJFILES) src/windows/icon.res
 	$(CXX) -o bin/warpd.exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
 
 src/windows/icon.res: src/windows/icon.rc
-	windres $< -O coff -o $@
+	windres -i $< -o $@ --output-format=coff
 
 clean:
 	-rm -f $(OBJFILES)

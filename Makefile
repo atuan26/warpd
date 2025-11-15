@@ -42,5 +42,8 @@ else
 	include mk/linux.mk
 endif
 
+debug:
+	$(MAKE) DEBUG=1
+
 man:
 	scdoc < warpd.1.md | gzip > files/warpd.1.gz
