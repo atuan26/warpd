@@ -116,6 +116,28 @@ static bool is_interactive_element(IUIAutomationElement* element)
     if (FAILED(hr))
         return false;
 
+    // Explicitly exclude container types that should never be interactive
+    switch (controlType) {
+        case UIA_PaneControlTypeId:
+        case UIA_GroupControlTypeId:
+        case UIA_WindowControlTypeId:
+        case UIA_DocumentControlTypeId:
+        case UIA_ToolBarControlTypeId:
+        case UIA_StatusBarControlTypeId:
+        case UIA_TitleBarControlTypeId:
+        case UIA_MenuBarControlTypeId:
+        case UIA_ScrollBarControlTypeId:
+        case UIA_SeparatorControlTypeId:
+        case UIA_ListControlTypeId:
+        case UIA_TableControlTypeId:
+        case UIA_TreeControlTypeId:
+        case UIA_TabControlTypeId:
+        case UIA_HeaderControlTypeId:
+        case UIA_HeaderItemControlTypeId:
+            // These are containers, not interactive elements
+            return false;
+    }
+
     // Check for obviously interactive control types first (fastest path)
     switch (controlType) {
         case UIA_ButtonControlTypeId:
@@ -129,14 +151,19 @@ static bool is_interactive_element(IUIAutomationElement* element)
         case UIA_SliderControlTypeId:
         case UIA_SpinnerControlTypeId:
         case UIA_TabItemControlTypeId:
+        case UIA_TreeItemControlTypeId:
+        case UIA_DataItemControlTypeId:
+        case UIA_SplitButtonControlTypeId:
             return true;
         case UIA_TextControlTypeId:
-        case UIA_TreeItemControlTypeId:
-            // These might be interactive, check enabled state
+            // Text might be interactive (links), check patterns
+            break;
+        case UIA_ImageControlTypeId:
+            // Images might be clickable, check patterns
             break;
         default:
-            // For other types, we need to check patterns
-            break;
+            // Unknown types, skip them
+            return false;
     }
 
     // Check if element is enabled (required for interactivity)
@@ -145,11 +172,7 @@ static bool is_interactive_element(IUIAutomationElement* element)
     if (FAILED(hr) || !isEnabled)
         return false;
 
-    // For text and tree items, being enabled is enough
-    if (controlType == UIA_TextControlTypeId || controlType == UIA_TreeItemControlTypeId)
-        return true;
-
-    // For other types, check for interaction patterns (but limit to most common ones)
+    // For text and images, check if they have interaction patterns
     // Check for invoke pattern first (most common)
     IUIAutomationInvokePattern* invokePattern = nullptr;
     hr = element->GetCurrentPattern(UIA_InvokePatternId, (IUnknown**)&invokePattern);
@@ -158,7 +181,7 @@ static bool is_interactive_element(IUIAutomationElement* element)
         return true;
     }
 
-    // Only check other patterns if invoke pattern failed
+    // Check for selection pattern (for selectable text/images)
     IUIAutomationSelectionItemPattern* selectionPattern = nullptr;
     hr = element->GetCurrentPattern(UIA_SelectionItemPatternId, (IUnknown**)&selectionPattern);
     if (SUCCEEDED(hr) && selectionPattern) {
@@ -273,6 +296,9 @@ static std::string get_element_type(IUIAutomationElement* element)
         case UIA_TabItemControlTypeId: return "tab";
         case UIA_TextControlTypeId: return "text";
         case UIA_TreeItemControlTypeId: return "treeitem";
+        case UIA_DataItemControlTypeId: return "dataitem";
+        case UIA_SplitButtonControlTypeId: return "splitbutton";
+        case UIA_ImageControlTypeId: return "image";
         default: return "element";
     }
 }
