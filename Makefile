@@ -1,4 +1,4 @@
-VERSION=2.0.0
+VERSION=2.1.0
 PREFIX?=/usr/local
 COMMITSTR=$(shell commit=$$(git rev-parse --short HEAD 2> /dev/null) && echo " (built from: $$commit)")
 
