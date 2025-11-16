@@ -7,7 +7,7 @@ CXX=x86_64-w64-mingw32-g++
 
 CFLAGS+=-DWINDOWS -DVERSION='"v$(VERSION)$(COMMITSTR)"'
 CXXFLAGS+=-DWINDOWS -DVERSION='"v$(VERSION)$(COMMITSTR)"'
-LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++
+LDFLAGS+=-luser32 -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -lshell32
 
 # Debug mode: show console for logs
 ifdef DEBUG
