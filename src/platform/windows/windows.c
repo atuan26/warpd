@@ -145,13 +145,27 @@ static void init_hint(const char *bg, const char *fg, int border_radius, const c
 
 void screen_list(screen_t scr[MAX_SCREENS], size_t *n)
 {
-	printf("screen_list UNIMPLEMENTED\n");
+	// Windows currently only supports single screen
+	// Multi-screen support would require significant refactoring of winscreen.c
+	POINT p = {0, 0};
+	struct screen *primary = wn_get_screen_at(p.x, p.y);
+	
+	if (primary) {
+		*n = 1;
+		scr[0] = primary;
+	} else {
+		*n = 0;
+	}
 }
 //====================================================================================
 
 void mouse_show()
 {
+	// Restore all system cursors to default
 	SystemParametersInfo(SPI_SETCURSORS, 0, NULL, 0);
+	
+	// Force cursor refresh
+	SetCursor(LoadCursor(NULL, IDC_ARROW));
 }
 
 void mouse_hide()
@@ -449,13 +463,21 @@ extern void windows_free_ui_elements(struct ui_detection_result *result);
 /* UI Automation cleanup function */
 extern void uiautomation_cleanup(void);
 
+static void cleanup_on_exit(void)
+{
+	// Restore system cursors
+	mouse_show();
+	// Cleanup UI Automation
+	uiautomation_cleanup();
+}
+
 void platform_run(int (*main)(struct platform *platform))
 {
 	SetWindowsHookEx(WH_KEYBOARD_LL, keyboardHook, GetModuleHandle(NULL), 0);
 	wn_init_screen();
 	
 	/* Register cleanup function to be called on exit */
-	atexit(uiautomation_cleanup);
+	atexit(cleanup_on_exit);
 
 	static struct platform platform;
 

@@ -9,7 +9,12 @@ void screen_selection_mode()
 	const char *screen_chars = config_get("screen_chars");
 
 	platform->screen_list(screens, &n);
-	assert(strlen(screen_chars) >= n);
+	
+	if (strlen(screen_chars) < n) {
+		fprintf(stderr, "Warning: Not enough screen_chars (%zu) for %zu screens. Using first %zu screens.\n",
+		        strlen(screen_chars), n, strlen(screen_chars));
+		n = strlen(screen_chars);
+	}
 
 	for (i = 0; i < n; i++) {
 		struct hint hint;

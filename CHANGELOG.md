@@ -1,3 +1,13 @@
+# v2.1.0
+
+## Windows
+- Fixed Smart Hint to show interactive elements instead of containers
+- Added "Run at startup" option in system tray menu
+- Added `make debug` command for console logging
+- New config: `ui_max_depth` (default: 10) - lower values = faster detection
+- New config: `ui_detection_timeout` (default: 5000ms) - stops detection early
+- Fixed screen selection mode crash (implemented `screen_list`)
+
 # v2.0.0
 - Add Smart Hint Mode - intelligent UI element detection inspired by Vimium
 - Implement platform-native accessibility API detection (AT-SPI, Accessibility APIs, UI Automation)
