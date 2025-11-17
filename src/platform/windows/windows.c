@@ -387,11 +387,22 @@ static void input_grab_keyboard()
 			send_key(i, 0);
 
 	keyboard_grabbed = 1;
+	
+	/* Use BlockInput to block all keyboard and mouse input
+	 * 
+	 * IMPORTANT: Requires administrator privileges to work!
+	 */
+	if (!BlockInput(TRUE)) {
+        fprintf(stderr, "Warning: BlockInput failed (may need admin privileges)\n");
+	}
 }
 
 static void input_ungrab_keyboard()
 {
-    keyboard_grabbed = 0;
+	keyboard_grabbed = 0;
+	
+	// Unblock keyboard input
+	BlockInput(FALSE);
 }
 
 void hint_draw(screen_t scr, struct hint *hints, size_t nhints)

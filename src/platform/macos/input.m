@@ -290,10 +290,15 @@ void osx_input_grab_keyboard()
 	if (grabbed)
 		return;
 
+	// Set grabbed flag - event tap will block all keyboard events
+	// The event tap runs in a separate thread, so this is thread-safe
 	dispatch_sync(dispatch_get_main_queue(), ^{
 		grabbed = 1;
 		grabbed_time = get_time_ms();
 	});
+	
+	// Force event tap to process immediately
+	CFRunLoopWakeUp(CFRunLoopGetMain());
 }
 
 struct input_event *osx_input_next_event(int timeout)

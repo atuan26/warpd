@@ -13,6 +13,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 /* Module state */
 static struct hint *hints = NULL;
 static struct hint matched[MAX_HINTS];
@@ -234,8 +240,31 @@ int smart_hint_mode(void)
 	int hint_w, hint_h;
 	get_hint_size(scr, &hint_w, &hint_h);
 
+	show_message(scr, "Detecting...", hint_h);
+
+	/* Lock keyboard during detection to prevent accidental typing
+	 * 
+	 * Platform support:
+	 * - X11: ✓ Full system-level block (XIGrabDevice)
+	 * - macOS: ✓ Event tap blocks keyboard (runs in separate thread)
+	 * - Wayland: ⚠ Limited - only blocks when window is focused
+	 * - Windows: ✓ Works with admin privileges (BlockInput API)
+	 *            ⚠ Without admin: keys may be delayed but still processed
+	 * 
+	 * Note: Run warpd as administrator on Windows for best experience.
+	 */
+	platform->input_grab_keyboard();
+
 	/* Detect UI elements using platform-specific method */
 	struct ui_detection_result *result = platform->detect_ui_elements();
+	
+	/* Unlock keyboard */
+	platform->input_ungrab_keyboard();
+	
+	/* Clear the detecting message */
+	platform->screen_clear(scr);
+	platform->commit();
+
 	if (!result) {
 		fprintf(stderr, "Failed to detect UI elements\n");
 		return -1;
@@ -257,6 +286,18 @@ int smart_hint_mode(void)
 
 	if (!hint_array || hint_count == 0) {
 		fprintf(stderr, "No interactive elements found\n");
+		show_message(scr, "No elements found", hint_h);
+		
+		/* Wait a moment so user can see the message */
+		#ifdef _WIN32
+			Sleep(1000);
+		#else
+			usleep(1000000);
+		#endif
+		
+		platform->screen_clear(scr);
+		platform->commit();
+		
 		if (hint_array)
 			free(hint_array);
 		return -1;
