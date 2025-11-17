@@ -39,14 +39,15 @@ OBJECTS=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 
 all: $(OBJECTS)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd $(OBJECTS) $(CFLAGS) $(LDFLAGS)
+	$(CXX) -o bin/warpd-$(VERSION) $(OBJECTS) $(CFLAGS) $(LDFLAGS)
+	@echo "Built: bin/warpd-$(VERSION)"
 clean:
 	-rm $(OBJECTS)
 	-rm -r bin
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1/ $(DESTDIR)$(PREFIX)/bin/
 	install -m644 files/warpd.1.gz $(DESTDIR)$(PREFIX)/share/man/man1/
-	install -m755 bin/warpd $(DESTDIR)$(PREFIX)/bin/
+	install -m755 bin/warpd-$(VERSION) $(DESTDIR)$(PREFIX)/bin/warpd
 uninstall:
 	rm $(DESTDIR)$(PREFIX)/share/man/man1/warpd.1.gz\
 		$(DESTDIR)$(PREFIX)/bin/warpd
