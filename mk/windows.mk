@@ -50,7 +50,8 @@ endif
 
 all: $(OBJFILES) src/windows/icon.res
 	-mkdir -p bin
-	$(CXX) -o bin/warpd.exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
+	$(CXX) -o bin/warpd-$(VERSION).exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
+	@echo "Built: bin/warpd-$(VERSION).exe"
 
 src/windows/icon.res: src/windows/icon.rc
 	windres $< -O coff -o $@
