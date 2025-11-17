@@ -14,6 +14,33 @@
 extern const char *config_get(const char *key);
 extern int config_get_int(const char *key);
 
+/* Import platform */
+extern struct platform *platform;
+
+/**
+ * Show a centered message on screen
+ * 
+ * @param scr Screen to display on
+ * @param message Message text to display
+ * @param hint_h Height of the hint box
+ */
+void show_message(screen_t scr, const char *message, int hint_h)
+{
+	int screen_w, screen_h;
+	platform->screen_get_dimensions(scr, &screen_w, &screen_h);
+	
+	struct hint msg_hint = {0};
+	msg_hint.x = (screen_w - 250) / 2;  // Center horizontally
+	msg_hint.y = 50;  // Near top
+	msg_hint.w = 250;
+	msg_hint.h = hint_h;
+	snprintf(msg_hint.label, sizeof(msg_hint.label), "%s", message);
+	
+	platform->screen_clear(scr);
+	platform->hint_draw(scr, &msg_hint, 1);
+	platform->commit();
+}
+
 /**
  * Calculate distance between two points
  */
