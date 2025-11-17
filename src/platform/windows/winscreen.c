@@ -89,6 +89,9 @@ static void redraw(struct screen *scr)
 {
 	size_t i;
 
+	SetWindowPos(scr->overlay, HWND_TOPMOST, 0, 0, 0, 0, 
+	             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
 	clear(scr);
 
 	for (i = 0; i < scr->nboxes; i++) {
@@ -170,8 +173,10 @@ AcquireMutex(mtx);
     scr->overlay = create_overlay(scr->x, scr->y, scr->w, scr->h);
     scr->dc = GetDC(scr->overlay);
 
-
     ShowWindow(scr->overlay, SW_SHOW);
+    
+    SetWindowPos(scr->overlay, HWND_TOPMOST, 0, 0, 0, 0, 
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
 ReleaseMutex(mtx);
 
