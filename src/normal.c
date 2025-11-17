@@ -21,11 +21,14 @@ static void redraw(screen_t scr, int x, int y, int hide_cursor)
 
 	platform->screen_clear(scr);
 
-	if (!hide_cursor)
-		platform->screen_draw_box(scr, x+1, y-cursz/2,
-				cursz, cursz,
-				curcol);
-
+	if (!hide_cursor) {
+		const char *cursor_img_path = config_get("cursor_image");
+		if (cursor_img_path && cursor_img_path[0] != '\0') {
+			draw_target_cursor(scr, x, y);
+		} else {
+			platform->screen_draw_box(scr, x+1, y-cursz/2, cursz, cursz, curcol);
+		}
+	}
 
 	if (!strcmp(indicator, "bottomleft"))
 		platform->screen_draw_box(scr, gap, sh-indicator_size-gap, indicator_size, indicator_size, indicator_color);
@@ -138,6 +141,10 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		}
 
 		if (!ev)  {
+			/* Redraw to keep animated cursors animating */
+			if (!system_cursor && show_cursor) {
+				redraw(scr, mx, my, !show_cursor);
+			}
 			continue;
 		} else if (config_input_match(ev, "scroll_down")) {
 			redraw(scr, mx, my, 1);

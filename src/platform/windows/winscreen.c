@@ -19,7 +19,7 @@ struct screen {
 	int h;
 	
 	struct hint hints[4096];
-	struct box boxes[128];
+	struct box boxes[2048];  /* Increased for PNG cursor support */
 
 	size_t nboxes;
 	size_t nhints;

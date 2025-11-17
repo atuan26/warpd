@@ -17,15 +17,57 @@
 #include <windows.h>
 #else
 #include <unistd.h>
+#include <pthread.h>
 #endif
 
 /* Module state */
 static struct hint *hints = NULL;
 static struct hint matched[MAX_HINTS];
 static size_t nr_hints = 0;
+
+/* Detection thread state */
+struct detection_context {
+	volatile int done;
+	struct ui_detection_result *result;
+#ifdef _WIN32
+	HANDLE thread;
+	CRITICAL_SECTION lock;
+#else
+	pthread_t thread;
+	pthread_mutex_t lock;
+#endif
+};
 static size_t nr_matched = 0;
 
 char s_last_selected_hint[32] = {0};
+
+/**
+ * Detection thread function
+ */
+#ifdef _WIN32
+static DWORD WINAPI detection_thread(LPVOID param)
+#else
+static void *detection_thread(void *param)
+#endif
+{
+	struct detection_context *ctx = (struct detection_context *)param;
+	
+	/* Run detection */
+	ctx->result = platform->detect_ui_elements();
+	
+	/* Mark as done */
+#ifdef _WIN32
+	EnterCriticalSection(&ctx->lock);
+	ctx->done = 1;
+	LeaveCriticalSection(&ctx->lock);
+#else
+	pthread_mutex_lock(&ctx->lock);
+	ctx->done = 1;
+	pthread_mutex_unlock(&ctx->lock);
+#endif
+	
+	return 0;
+}
 
 /**
  * Filter hints based on prefix match
@@ -240,7 +282,14 @@ int smart_hint_mode(void)
 	int hint_w, hint_h;
 	get_hint_size(scr, &hint_w, &hint_h);
 
+	platform->mouse_hide();
+	
 	show_message(scr, "Detecting...", hint_h);
+	
+	int mx, my;
+	platform->mouse_get_position(&scr, &mx, &my);
+	draw_loading_cursor(scr, mx, my);
+	platform->commit();
 
 	/* Lock keyboard during detection to prevent accidental typing
 	 * 
@@ -255,15 +304,83 @@ int smart_hint_mode(void)
 	 */
 	platform->input_grab_keyboard();
 
-	/* Detect UI elements using platform-specific method */
-	struct ui_detection_result *result = platform->detect_ui_elements();
+	/* Initialize detection context */
+	struct detection_context ctx = {0};
+	ctx.done = 0;
+	ctx.result = NULL;
 	
+#ifdef _WIN32
+	InitializeCriticalSection(&ctx.lock);
+	ctx.thread = CreateThread(NULL, 0, detection_thread, &ctx, 0, NULL);
+	if (!ctx.thread) {
+		fprintf(stderr, "Failed to create detection thread\n");
+		platform->input_ungrab_keyboard();
+		platform->mouse_show();
+		DeleteCriticalSection(&ctx.lock);
+		return -1;
+	}
+#else
+	pthread_mutex_init(&ctx.lock, NULL);
+	if (pthread_create(&ctx.thread, NULL, detection_thread, &ctx) != 0) {
+		fprintf(stderr, "Failed to create detection thread\n");
+		platform->input_ungrab_keyboard();
+		platform->mouse_show();
+		pthread_mutex_destroy(&ctx.lock);
+		return -1;
+	}
+#endif
+
+	/* Keep drawing animated cursor while detection runs */
+	while (1) {
+		/* Check if detection is done */
+		int done;
+#ifdef _WIN32
+		EnterCriticalSection(&ctx.lock);
+		done = ctx.done;
+		LeaveCriticalSection(&ctx.lock);
+#else
+		pthread_mutex_lock(&ctx.lock);
+		done = ctx.done;
+		pthread_mutex_unlock(&ctx.lock);
+#endif
+		
+		if (done)
+			break;
+		
+		/* Redraw message and animated cursor */
+		platform->mouse_get_position(&scr, &mx, &my);
+		show_message(scr, "Detecting...", hint_h);
+		draw_loading_cursor(scr, mx, my);
+		platform->commit();
+		
+		/* Sleep a bit to avoid excessive CPU usage */
+#ifdef _WIN32
+		Sleep(16);  /* ~60 FPS */
+#else
+		usleep(16000);
+#endif
+	}
+
+	/* Wait for thread to finish */
+#ifdef _WIN32
+	WaitForSingleObject(ctx.thread, INFINITE);
+	CloseHandle(ctx.thread);
+	DeleteCriticalSection(&ctx.lock);
+#else
+	pthread_join(ctx.thread, NULL);
+	pthread_mutex_destroy(&ctx.lock);
+#endif
+
+	/* Get result */
+	struct ui_detection_result *result = ctx.result;
+
 	/* Unlock keyboard */
 	platform->input_ungrab_keyboard();
 	
-	/* Clear the detecting message */
 	platform->screen_clear(scr);
 	platform->commit();
+	
+	platform->mouse_show();
 
 	if (!result) {
 		fprintf(stderr, "Failed to detect UI elements\n");

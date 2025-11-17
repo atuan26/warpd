@@ -58,6 +58,10 @@ static struct {
 	{ "scroll_up", "r", "Scroll up key.", OPT_KEY },
 
 	{ "cursor_color", "#FF4500", "The color of the pointer in normal mode (rgba hex value).", OPT_STRING },
+	{ "cursor_image", "", "Path to PNG image for normal cursor (empty = use built-in').", OPT_STRING },
+	{ "cursor_image_loading", "", "Path to PNG image for loading cursor (empty = use built-in).", OPT_STRING },
+	{ "cursor_animation_speed", "100", "GIF animation speed percentage (100 = normal, 200 = 2x faster, 50 = half speed).", OPT_INT },
+	{ "cursor_max_frames", "60", "Maximum number of frames to load from animated GIFs (lower = faster loading).", OPT_INT },
 
 	{ "cursor_size", "7", "The height of the pointer in normal mode.", OPT_INT },
 	{ "repeat_interval", "20", "The number of milliseconds before repeating a movement event.", OPT_INT },

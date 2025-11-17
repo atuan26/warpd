@@ -5,6 +5,7 @@
  */
 
 #include "../platform.h"
+#include "image_loader.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,71 @@ extern int config_get_int(const char *key);
 
 /* Import platform */
 extern struct platform *platform;
+
+/* Cached cursor images */
+static struct cursor_image *target_cursor = NULL;
+static struct cursor_image *hourglass_cursor = NULL;
+static int images_load_attempted = 0;
+
+/**
+ * Load cursor images from config or default paths
+ */
+static void load_cursor_images(void)
+{
+	/* Only try loading once to avoid repeated error messages */
+	if (images_load_attempted)
+		return;
+	
+	images_load_attempted = 1;
+	
+	/* Get paths from config (empty string = don't use images) */
+	const char *loading_path = config_get("cursor_image_loading");
+	const char *target_path = config_get("cursor_image");
+	
+	/* Load loading cursor if path is specified */
+	if (loading_path && loading_path[0] != '\0') {
+		hourglass_cursor = load_cursor_image(loading_path);
+	}
+	
+	if (target_path && target_path[0] != '\0') {
+		target_cursor = load_cursor_image(target_path);
+	}
+
+}
+
+/**
+ * Draw loading cursor at the mouse position (for waiting/detecting)
+ * Uses hourglass.png
+ * 
+ * @param scr Screen to display on
+ * @param x Mouse X position
+ * @param y Mouse Y position
+ */
+void draw_loading_cursor(screen_t scr, int x, int y)
+{
+	load_cursor_images();
+	
+	if (hourglass_cursor) {
+		draw_cursor_image(scr, hourglass_cursor, x, y);
+	}
+}
+
+/**
+ * Draw target cursor at the mouse position (for normal mode)
+ * Uses target.png
+ * 
+ * @param scr Screen to display on
+ * @param x Mouse X position
+ * @param y Mouse Y position
+ */
+void draw_target_cursor(screen_t scr, int x, int y)
+{
+	load_cursor_images();
+	
+	if (target_cursor) {
+		draw_cursor_image(scr, target_cursor, x, y);
+	}
+}
 
 /**
  * Show a centered message on screen
