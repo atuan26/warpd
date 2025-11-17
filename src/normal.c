@@ -141,6 +141,10 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		}
 
 		if (!ev)  {
+			/* Redraw to keep animated cursors animating */
+			if (!system_cursor && show_cursor) {
+				redraw(scr, mx, my, !show_cursor);
+			}
 			continue;
 		} else if (config_input_match(ev, "scroll_down")) {
 			redraw(scr, mx, my, 1);
