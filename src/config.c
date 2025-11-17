@@ -58,6 +58,8 @@ static struct {
 	{ "scroll_up", "r", "Scroll up key.", OPT_KEY },
 
 	{ "cursor_color", "#FF4500", "The color of the pointer in normal mode (rgba hex value).", OPT_STRING },
+	{ "cursor_image", "", "Path to PNG image for normal cursor (empty = use built-in').", OPT_STRING },
+	{ "cursor_image_loading", "", "Path to PNG image for loading cursor (empty = use built-in).", OPT_STRING },
 
 	{ "cursor_size", "7", "The height of the pointer in normal mode.", OPT_INT },
 	{ "repeat_interval", "20", "The number of milliseconds before repeating a movement event.", OPT_INT },

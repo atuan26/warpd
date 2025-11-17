@@ -240,7 +240,14 @@ int smart_hint_mode(void)
 	int hint_w, hint_h;
 	get_hint_size(scr, &hint_w, &hint_h);
 
+	platform->mouse_hide();
+	
 	show_message(scr, "Detecting...", hint_h);
+	
+	int mx, my;
+	platform->mouse_get_position(&scr, &mx, &my);
+	draw_loading_cursor(scr, mx, my);
+	platform->commit();
 
 	/* Lock keyboard during detection to prevent accidental typing
 	 * 
@@ -257,13 +264,14 @@ int smart_hint_mode(void)
 
 	/* Detect UI elements using platform-specific method */
 	struct ui_detection_result *result = platform->detect_ui_elements();
-	
+
 	/* Unlock keyboard */
 	platform->input_ungrab_keyboard();
 	
-	/* Clear the detecting message */
 	platform->screen_clear(scr);
 	platform->commit();
+	
+	platform->mouse_show();
 
 	if (!result) {
 		fprintf(stderr, "Failed to detect UI elements\n");

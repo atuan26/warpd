@@ -65,6 +65,8 @@ typedef struct screen *screen_t;
 /* Common UI utility functions */
 void remove_overlapping_elements(struct ui_detection_result *result);
 void show_message(screen_t scr, const char *message, int hint_h);
+void draw_loading_cursor(screen_t scr, int x, int y);
+void draw_target_cursor(screen_t scr, int x, int y);
 
 struct platform {
 	/* Input */
