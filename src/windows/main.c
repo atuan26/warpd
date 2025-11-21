@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <direct.h>
 #include <stdio.h>
+#include <signal.h>
 #include <windows.h>
 #include <winuser.h>
 #include <shlobj.h>
@@ -28,6 +29,55 @@ static const char *icon_menu_items[] = {
 };
 
 struct platform *platform;
+
+// Crash handler to restore cursor
+static LONG WINAPI crash_handler(EXCEPTION_POINTERS *ExceptionInfo)
+{
+	fprintf(stderr, "\n=== CRASH DETECTED ===\n");
+	fprintf(stderr, "Exception code: 0x%08lX\n", ExceptionInfo->ExceptionRecord->ExceptionCode);
+	fprintf(stderr, "Restoring system cursor...\n");
+	
+	// Restore cursor before crashing
+	if (platform && platform->mouse_show) {
+		platform->mouse_show();
+	}
+	
+	fprintf(stderr, "Cursor restored. Exiting.\n");
+	
+	// Let the system handle the crash normally
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Signal handler for clean exits (Ctrl+C, etc.)
+static void signal_handler(int sig)
+{
+	fprintf(stderr, "\n=== SIGNAL RECEIVED: %d ===\n", sig);
+	fprintf(stderr, "Restoring system cursor...\n");
+	
+	// Restore cursor before exiting
+	if (platform && platform->mouse_show) {
+		platform->mouse_show();
+	}
+	
+	fprintf(stderr, "Cursor restored. Exiting.\n");
+	exit(0);
+}
+
+// Windows console control handler (for Ctrl+C, close button, etc.)
+static BOOL WINAPI console_ctrl_handler(DWORD dwCtrlType)
+{
+	fprintf(stderr, "\n=== CONSOLE CONTROL EVENT: %lu ===\n", dwCtrlType);
+	fprintf(stderr, "Restoring system cursor...\n");
+	
+	// Restore cursor before exiting
+	if (platform && platform->mouse_show) {
+		platform->mouse_show();
+	}
+	
+	fprintf(stderr, "Cursor restored. Exiting.\n");
+	exit(0);
+	return TRUE;
+}
 
 uint64_t get_time_us()
 {
@@ -243,6 +293,17 @@ void redirect_stdout()
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+	// Install crash handler to restore cursor on crashes
+	SetUnhandledExceptionFilter(crash_handler);
+	
+	// Install signal handlers for clean exits
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGABRT, signal_handler);
+	
+	// Install console control handler (for Ctrl+C, close button, etc.)
+	SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+	
 	CreateMutex( NULL, TRUE, "warpd" );
 
 	if (GetLastError() ==  ERROR_ALREADY_EXISTS) {

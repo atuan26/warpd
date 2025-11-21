@@ -34,6 +34,25 @@ Automatically detects interactive UI elements (buttons, links, inputs) and gener
 
 *Note: Accessibility APIs provide the most accurate detection. OpenCV fallback uses computer vision to detect UI elements when native APIs are unavailable.*
 
+### 🆕 Insert Mode & Text Manipulation
+
+**Insert Mode** (`i` in Normal Mode)
+- Automatically copies any selected text to clipboard
+- Opens a text input dialog pre-filled with clipboard content
+- Edit the text and press Enter to paste, or Escape to cancel
+
+**Workflow Example:**
+1. Select text in any application (with mouse or `v` drag mode)
+2. Press `i` - selected text is copied and shown in dialog
+3. Edit the text
+4. Press Enter - edited text is pasted back
+
+**Copy & Paste** (Vim-like workflow)
+- `y` - Copy selected text (yank)
+- `p` - Paste from clipboard (put)
+- `v` - Enter drag mode to select text
+- `c` - Copy and exit
+- `i` - Copy selection, edit in dialog, and paste
 ## Quick Start
 
 ### Installation

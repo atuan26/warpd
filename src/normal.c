@@ -71,6 +71,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"accelerator",
 		"bottom",
 		"buttons",
+		"copy",
 		"copy_and_exit",
 		"decelerator",
 		"down",
@@ -87,12 +88,14 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"left",
 		"middle",
 		"oneshot_buttons",
+		"paste",
 		"print",
 		"right",
 		"screen",
 		"scroll_down",
 		"scroll_up",
 		"start",
+		"toggle_insert_mode",
 		"top",
 		"up",
 	};
@@ -172,7 +175,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 				mouse_slow();
 			else
 				mouse_normal();
-		} else if (!ev->pressed) {
+        } else if (!ev->pressed) {
 			goto next;
 		}
 
@@ -203,11 +206,22 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 				platform->mouse_down(config_get_int("drag_button"));
 			else
 				platform->mouse_up(config_get_int("drag_button"));
+		} else if (config_input_match(ev, "copy")) {
+			platform->copy_selection();
+		} else if (config_input_match(ev, "paste")) {
+			if (platform->send_paste) {
+				platform->send_paste();
+			}
 		} else if (config_input_match(ev, "copy_and_exit")) {
 			platform->mouse_up(config_get_int("drag_button"));
 			platform->copy_selection();
 			ev = NULL;
 			goto exit;
+		} else if (config_input_match(ev, "toggle_insert_mode")) {
+			if (platform->insert_text_mode) {
+				platform->insert_text_mode(scr);
+			}
+			redraw(scr, mx, my, !show_cursor);
 		} else if (config_input_match(ev, "exit") ||
 			   config_input_match(ev, "grid") ||
 			   config_input_match(ev, "screen") ||

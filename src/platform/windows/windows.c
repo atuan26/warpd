@@ -302,6 +302,38 @@ static const char *input_lookup_name(uint8_t code, int shifted)
 		//Fix up conflicting codes
 		strcpy(keymap[0x6E], "decimal"); //Avoid conflict with "." (0xBE)
 		strcpy(shifted_keymap[0x6E], "decimal"); //Avoid conflict with "." (0xBE)
+		
+		//Fix modifier keys and special keys that ToUnicode doesn't handle
+		strcpy(keymap[VK_SHIFT], "shift");
+		strcpy(shifted_keymap[VK_SHIFT], "shift");
+		strcpy(keymap[VK_CONTROL], "ctrl");
+		strcpy(shifted_keymap[VK_CONTROL], "ctrl");
+		strcpy(keymap[VK_MENU], "alt");  // VK_MENU is Alt key
+		strcpy(shifted_keymap[VK_MENU], "alt");
+		strcpy(keymap[VK_LSHIFT], "lshift");
+		strcpy(shifted_keymap[VK_LSHIFT], "lshift");
+		strcpy(keymap[VK_RSHIFT], "rshift");
+		strcpy(shifted_keymap[VK_RSHIFT], "rshift");
+		strcpy(keymap[VK_LCONTROL], "lctrl");
+		strcpy(shifted_keymap[VK_LCONTROL], "lctrl");
+		strcpy(keymap[VK_RCONTROL], "rctrl");
+		strcpy(shifted_keymap[VK_RCONTROL], "rctrl");
+		strcpy(keymap[VK_LMENU], "lalt");
+		strcpy(shifted_keymap[VK_LMENU], "lalt");
+		strcpy(keymap[VK_RMENU], "ralt");
+		strcpy(shifted_keymap[VK_RMENU], "ralt");
+		strcpy(keymap[VK_LWIN], "lwin");
+		strcpy(shifted_keymap[VK_LWIN], "lwin");
+		strcpy(keymap[VK_RWIN], "rwin");
+		strcpy(shifted_keymap[VK_RWIN], "rwin");
+		
+		//Fix other special keys
+		strcpy(keymap[VK_TAB], "tab");
+		strcpy(shifted_keymap[VK_TAB], "tab");
+		strcpy(keymap[VK_CAPITAL], "capslock");
+		strcpy(shifted_keymap[VK_CAPITAL], "capslock");
+		strcpy(keymap[VK_RETURN], "enter");
+		strcpy(shifted_keymap[VK_RETURN], "enter");
 
 		init++;
 	}
@@ -325,10 +357,16 @@ static void send_key(uint8_t code, int pressed)
 
 static void copy_selection()
 {
+	if (keyboard_grabbed) {
+		return;
+	}
+	
+	Sleep(20);
 	send_key(VK_CONTROL, 1);
 	send_key('C', 1);
 	send_key('C', 0);
 	send_key(VK_CONTROL, 0);
+	Sleep(20);
 }
 
 
@@ -393,7 +431,7 @@ static void input_grab_keyboard()
 	 * IMPORTANT: Requires administrator privileges to work!
 	 */
 	if (!BlockInput(TRUE)) {
-        fprintf(stderr, "Warning: BlockInput failed (may need admin privileges)\n");
+        // fprintf(stderr, "Warning: BlockInput failed (may need admin privileges)\n");
 	}
 }
 
@@ -474,6 +512,208 @@ extern void windows_free_ui_elements(struct ui_detection_result *result);
 /* UI Automation cleanup function */
 extern void uiautomation_cleanup(void);
 
+//====================================================================================
+// Paste Key
+//====================================================================================
+
+static void send_paste()
+{
+	if (keyboard_grabbed) {
+		return;
+	}
+	
+	Sleep(20);
+	
+	/* Send Ctrl+V using SendInput directly for better reliability */
+	INPUT inputs[4];
+	UINT result;
+	
+	/* Initialize all inputs */
+	memset(inputs, 0, sizeof(inputs));
+	
+	/* Press Ctrl */
+	inputs[0].type = INPUT_KEYBOARD;
+	inputs[0].ki.wVk = VK_CONTROL;
+	inputs[0].ki.wScan = 0;
+	inputs[0].ki.dwFlags = 0;
+	inputs[0].ki.time = 0;
+	inputs[0].ki.dwExtraInfo = 0;
+	
+	/* Press V */
+	inputs[1].type = INPUT_KEYBOARD;
+	inputs[1].ki.wVk = 'V';
+	inputs[1].ki.wScan = 0;
+	inputs[1].ki.dwFlags = 0;
+	inputs[1].ki.time = 0;
+	inputs[1].ki.dwExtraInfo = 0;
+	
+	/* Release V */
+	inputs[2].type = INPUT_KEYBOARD;
+	inputs[2].ki.wVk = 'V';
+	inputs[2].ki.wScan = 0;
+	inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+	inputs[2].ki.time = 0;
+	inputs[2].ki.dwExtraInfo = 0;
+	
+	/* Release Ctrl */
+	inputs[3].type = INPUT_KEYBOARD;
+	inputs[3].ki.wVk = VK_CONTROL;
+	inputs[3].ki.wScan = 0;
+	inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+	inputs[3].ki.time = 0;
+	inputs[3].ki.dwExtraInfo = 0;
+	
+	SendInput(4, inputs, sizeof(INPUT));
+	Sleep(20);
+}
+
+//====================================================================================
+// Simple Text Input Box
+//====================================================================================
+
+static HWND g_edit_hwnd = NULL;
+static char *g_input_buffer = NULL;
+static size_t g_input_buffer_size = 0;
+static int g_input_submitted = 0;
+
+static LRESULT CALLBACK SimpleEditProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg) {
+		case WM_CHAR:
+			if (wParam == VK_RETURN) {
+				/* Enter pressed - submit */
+				GetWindowTextA(hwnd, g_input_buffer, g_input_buffer_size);
+				g_input_submitted = 1;
+				DestroyWindow(hwnd);
+				return 0;
+			} else if (wParam == VK_ESCAPE) {
+				g_input_buffer[0] = '\0';
+				g_input_submitted = 0;
+				DestroyWindow(hwnd);
+				return 0;
+			}
+			break;
+			
+		case WM_KILLFOCUS:
+			if (!g_input_submitted) {
+				g_input_buffer[0] = '\0';
+				g_input_submitted = 0;
+				DestroyWindow(hwnd);
+			}
+			return 0;
+	}
+	
+	return CallWindowProc((WNDPROC)GetWindowLongPtr(hwnd, GWLP_USERDATA), hwnd, msg, wParam, lParam);
+}
+
+static int insert_text_mode(screen_t scr)
+{
+	char text_buffer[1024] = {0};
+	g_input_buffer = text_buffer;
+	g_input_buffer_size = sizeof(text_buffer);
+	g_input_submitted = 0;
+	
+	input_ungrab_keyboard();
+	
+	copy_selection();
+	Sleep(50);
+	
+	/* Hide warpd overlay */
+	screen_clear(scr);
+	commit();
+	
+	/* Get cursor position */
+	POINT cursor_pos;
+	GetCursorPos(&cursor_pos);
+	
+	/* Create a simple borderless edit control */
+	HWND hwndEdit = CreateWindowExA(
+		WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+		"EDIT",
+		"",
+		WS_POPUP | WS_BORDER | ES_LEFT | ES_AUTOHSCROLL,
+		cursor_pos.x + 10,
+		cursor_pos.y + 10,
+		300,  /* width */
+		25,   /* height */
+		NULL,
+		NULL,
+		GetModuleHandle(NULL),
+		NULL
+	);
+	
+	if (!hwndEdit) {
+		fprintf(stderr, "ERROR: Failed to create edit control\n");
+		input_grab_keyboard();
+		return 0;
+	}
+	
+	g_edit_hwnd = hwndEdit;
+	
+	/* Pre-fill with clipboard text if available */
+	if (OpenClipboard(NULL)) {
+		HANDLE hData = GetClipboardData(CF_TEXT);
+		if (hData) {
+			char *clipboard_text = (char*)GlobalLock(hData);
+			if (clipboard_text) {
+				SetWindowTextA(hwndEdit, clipboard_text);
+				GlobalUnlock(hData);
+			}
+		}
+		CloseClipboard();
+	}
+	
+	/* Subclass the edit control to handle Enter/Escape */
+	WNDPROC oldProc = (WNDPROC)SetWindowLongPtr(hwndEdit, GWLP_WNDPROC, (LONG_PTR)SimpleEditProc);
+	SetWindowLongPtr(hwndEdit, GWLP_USERDATA, (LONG_PTR)oldProc);
+	
+	/* Show and focus */
+	ShowWindow(hwndEdit, SW_SHOW);
+	SetForegroundWindow(hwndEdit);
+	SetFocus(hwndEdit);
+	
+	/* Select all text */
+	SendMessage(hwndEdit, EM_SETSEL, 0, -1);
+	
+	/* Message loop */
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0)) {
+		if (!IsWindow(hwndEdit)) {
+			break;
+		}
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	
+	
+	/* Process result */
+	int success = 0;
+	if (g_input_submitted && text_buffer[0] != '\0') {
+		if (OpenClipboard(NULL)) {
+			EmptyClipboard();
+			
+			size_t len = strlen(text_buffer);
+			HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len + 1);
+			if (hMem) {
+				char *pMem = (char*)GlobalLock(hMem);
+				if (pMem) {
+					strcpy(pMem, text_buffer);
+					GlobalUnlock(hMem);
+					SetClipboardData(CF_TEXT, hMem);
+				}
+			}
+			CloseClipboard();
+		}
+		
+		Sleep(100);
+		send_paste();
+		success = 1;
+	}
+	
+	input_grab_keyboard();
+	return success;
+}
+
 static void cleanup_on_exit(void)
 {
 	// Restore system cursors
@@ -520,6 +760,10 @@ void platform_run(int (*main)(struct platform *platform))
 	/* UI element detection for smart hint mode */
 	platform.detect_ui_elements = windows_detect_ui_elements;
 	platform.free_ui_elements = windows_free_ui_elements;
+	
+	/* Insert text mode and paste */
+	platform.insert_text_mode = insert_text_mode;
+	platform.send_paste = send_paste;
 
 	exit(main(&platform));
 }

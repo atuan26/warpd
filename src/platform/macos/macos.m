@@ -6,6 +6,58 @@
 
 #include "macos.h"
 
+/* Insert text mode - uses osascript for text input */
+static int osx_insert_text_mode(screen_t scr)
+{
+	osx_copy_selection();
+	usleep(50000);
+	
+	osx_screen_clear(scr);
+	osx_commit();
+	
+	FILE *fp = popen("osascript -e 'tell application \"System Events\"' -e 'activate' -e 'set userInput to text returned of (display dialog \"Type text and press OK:\" default answer \"\" buttons {\"Cancel\", \"OK\"} default button \"OK\")' -e 'end tell' 2>/dev/null", "r");
+	if (!fp) {
+		return 0;
+	}
+	
+	char text_buffer[1024] = {0};
+	if (fgets(text_buffer, sizeof(text_buffer), fp) != NULL) {
+		size_t len = strlen(text_buffer);
+		if (len > 0 && text_buffer[len-1] == '\n') {
+			text_buffer[len-1] = '\0';
+		}
+		
+		int status = pclose(fp);
+		
+		if (WIFEXITED(status) && WEXITSTATUS(status) == 0 && text_buffer[0] != '\0') {
+			FILE *clip = popen("pbcopy", "w");
+			if (clip) {
+				fputs(text_buffer, clip);
+				pclose(clip);
+				usleep(100000);
+				osx_send_paste();
+				return 1;
+			}
+		}
+	} else {
+		pclose(fp);
+	}
+	
+	return 0;
+}
+
+/* Send paste key (Cmd+V) - copy already exists as osx_copy_selection */
+static void osx_send_paste()
+{
+	int shifted;
+	
+	/* Send Cmd+V (same pattern as osx_copy_selection) */
+	send_key(osx_input_lookup_code("leftmeta", &shifted), 1);
+	send_key(osx_input_lookup_code("v", &shifted), 1);
+	send_key(osx_input_lookup_code("leftmeta", &shifted), 0);
+	send_key(osx_input_lookup_code("v", &shifted), 0);
+}
+
 static NSDictionary *get_font_attrs(const char *family, NSColor *color, int h)
 {
 	NSDictionary *attrs;
@@ -186,6 +238,8 @@ static void *mainloop(void *arg)
 		.screen_list = osx_screen_list,
 		.scroll = osx_scroll,
 		.monitor_file = osx_monitor_file,
+		.insert_text_mode = osx_insert_text_mode,
+		.send_paste = osx_send_paste,
 	};
 
 	main(&platform);
