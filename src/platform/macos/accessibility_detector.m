@@ -114,31 +114,42 @@ static int is_interactive_element(AXUIElementRef element)
 
     if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, (CFTypeRef *)&role) == kAXErrorSuccess) {
         if (role) {
-            CFStringRef interactive_roles[] = {
+            // High-value interactive elements (prioritize these)
+            CFStringRef high_priority_roles[] = {
                 kAXButtonRole,
                 kAXCheckBoxRole,
-                kAXComboBoxRole,
-                CFSTR("AXEditTextField"),  // Alternative to kAXTextFieldRole
-                CFSTR("AXLink"),           // Link role
-                kAXListRole,
+                kAXRadioButtonRole,
+                kAXPopUpButtonRole,
                 kAXMenuButtonRole,
                 kAXMenuItemRole,
-                kAXPopUpButtonRole,
-                kAXRadioButtonRole,
-                kAXScrollBarRole,
-                kAXSliderRole,
-                kAXStaticTextRole,  // Include text for navigation
-                kAXTabGroupRole,
-                CFSTR("AXTextField"),  // Text field
-                CFSTR("AXToggle"),     // Toggle elements
-                kAXToolbarRole,
-                CFSTR("AXCell"),  // Table cells
-                CFSTR("AXRow"),   // Table rows
+                kAXComboBoxRole,
+                CFSTR("AXTextField"),
+                CFSTR("AXEditTextField"),
+                CFSTR("AXLink"),           // Link role
                 NULL
             };
 
-            for (int i = 0; interactive_roles[i] != NULL; i++) {
-                if (CFStringCompare(role, interactive_roles[i], 0) == kCFCompareEqualTo) {
+            // Medium-value elements (include if space allows)
+            CFStringRef medium_priority_roles[] = {
+                kAXListRole,
+                kAXTabGroupRole,
+                kAXToolbarRole,
+                CFSTR("AXCell"),
+                CFSTR("AXRow"),
+                kAXScrollBarRole,
+                kAXSliderRole,
+                NULL
+            };
+
+            // Low-value elements (only include if very few others)
+            CFStringRef low_priority_roles[] = {
+                kAXStaticTextRole,  // Only large text blocks
+                NULL
+            };
+
+            // Check high priority roles first
+            for (int i = 0; high_priority_roles[i] != NULL; i++) {
+                if (CFStringCompare(role, high_priority_roles[i], 0) == kCFCompareEqualTo) {
                     is_interactive = 1;
                     break;
                 }
@@ -153,7 +164,32 @@ static int is_interactive_element(AXUIElementRef element)
         CFArrayRef actions = NULL;
         if (AXUIElementCopyActionNames(element, (CFArrayRef *)&actions) == kAXErrorSuccess) {
             if (actions && CFArrayGetCount(actions) > 0) {
-                is_interactive = 1;
+                // Check if it has meaningful actions
+                int has_meaningful_action = 0;
+                CFIndex action_count = CFArrayGetCount(actions);
+                for (CFIndex i = 0; i < action_count; i++) {
+                    CFStringRef action = (CFStringRef)CFArrayGetValueAtIndex(actions, i);
+                    if (action) {
+                        CFStringRef meaningful_actions[] = {
+                            CFSTR("AXPress"),
+                            CFSTR("AXClick"),
+                            CFSTR("AXSelect"),
+                            CFSTR("AXToggle"),
+                            NULL
+                        };
+
+                        for (int j = 0; meaningful_actions[j] != NULL; j++) {
+                            if (CFStringCompare(action, meaningful_actions[j], 0) == kCFCompareEqualTo) {
+                                has_meaningful_action = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (has_meaningful_action) {
+                    is_interactive = 1;
+                }
             }
             if (actions) {
                 CFRelease(actions);
@@ -165,6 +201,39 @@ static int is_interactive_element(AXUIElementRef element)
 }
 
 /**
+ * Check if element should be included based on size and position
+ */
+static int should_include_element(AXUIElementRef element)
+{
+    // Get size
+    AXValueRef size = NULL;
+    CGSize dimensions = CGSizeZero;
+
+    if (AXUIElementCopyAttributeValue(element, kAXSizeAttribute, (CFTypeRef *)&size) == kAXErrorSuccess) {
+        if (AXValueGetValue(size, kAXValueCGSizeType, &dimensions)) {
+            CFRelease(size);
+
+            // Filter out very small elements (likely decorative)
+            if (dimensions.width < 10 || dimensions.height < 10) {
+                return 0;
+            }
+
+            // Filter out very large elements (likely containers)
+            if (dimensions.width > 2000 || dimensions.height > 2000) {
+                return 0;
+            }
+
+            return 1;
+        }
+        if (size) {
+            CFRelease(size);
+        }
+    }
+
+    return 1; // Include if we can't determine size
+}
+
+/**
  * Recursively collect interactive elements
  */
 static void collect_interactive_elements(AXUIElementRef element, CFMutableArrayRef elements)
@@ -172,8 +241,8 @@ static void collect_interactive_elements(AXUIElementRef element, CFMutableArrayR
     if (!element || !elements)
         return;
 
-    // Check if current element is interactive
-    if (is_interactive_element(element)) {
+    // Check if current element is interactive and should be included
+    if (is_interactive_element(element) && should_include_element(element)) {
         CFRetain(element);
         CFArrayAppendValue(elements, element);
     }
@@ -213,48 +282,144 @@ static struct ui_detection_result *accessibility_detect_ui_elements(void)
 
     // Get focused application
     AXUIElementRef focused_app = NULL;
-    pid_t focused_pid = 0;
+    AXUIElementRef focused_window = NULL;
+    int use_screen_wide = 0;
 
     if (AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute, (CFTypeRef *)&focused_app) != kAXErrorSuccess) {
-        snprintf(result->error_msg, sizeof(result->error_msg),
-                 "Could not get focused application");
-        result->error = -2;
+        use_screen_wide = 1; // Fall back to screen-wide detection
+    }
+
+    if (!use_screen_wide && focused_app) {
+        // Try to get focused window
+        if (AXUIElementCopyAttributeValue(focused_app, kAXFocusedWindowAttribute, (CFTypeRef *)&focused_window) != kAXErrorSuccess) {
+            use_screen_wide = 1; // Fall back to screen-wide detection
+            CFRelease(focused_app);
+            focused_app = NULL;
+        }
+    }
+
+    if (use_screen_wide || !focused_window) {
+        // Screen-wide detection: get all applications and their windows
+        CFArrayRef apps = NULL;
+        if (AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXWindowsAttribute, (CFTypeRef *)&apps) != kAXErrorSuccess) {
+            snprintf(result->error_msg, sizeof(result->error_msg),
+                     "Could not get any windows");
+            if (focused_app) CFRelease(focused_app);
+            result->error = -2;
+            return result;
+        }
+
+        if (!apps || CFArrayGetCount(apps) == 0) {
+            snprintf(result->error_msg, sizeof(result->error_msg),
+                     "No windows found");
+            if (focused_app) CFRelease(focused_app);
+            if (apps) CFRelease(apps);
+            result->error = -3;
+            return result;
+        }
+
+        // Collect elements from all visible windows
+        CFMutableArrayRef elements = CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
+        if (!elements) {
+            snprintf(result->error_msg, sizeof(result->error_msg),
+                     "Memory allocation failed");
+            if (focused_app) CFRelease(focused_app);
+            CFRelease(apps);
+            result->error = -4;
+            return result;
+        }
+
+        CFIndex app_count = CFArrayGetCount(apps);
+        for (CFIndex i = 0; i < app_count; i++) {
+            AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(apps, i);
+            if (window) {
+                // Check if window is visible and on current screen
+                CFBooleanRef is_minimized = NULL;
+                int should_process = 1;
+
+                if (AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute, (CFTypeRef *)&is_minimized) == kAXErrorSuccess) {
+                    if (is_minimized) {
+                        should_process = CFBooleanGetValue(is_minimized) ? 0 : 1;
+                        CFRelease(is_minimized);
+                    }
+                }
+
+                if (should_process) {
+                    collect_interactive_elements(window, elements);
+                }
+            }
+        }
+
+        CFRelease(apps);
+
+        // Convert to platform format
+        CFIndex count = CFArrayGetCount(elements);
+        if (count == 0) {
+            snprintf(result->error_msg, sizeof(result->error_msg),
+                     "No interactive elements detected");
+            result->error = -5;
+            CFRelease(elements);
+            if (focused_app) CFRelease(focused_app);
+            return result;
+        }
+
+        result->elements = calloc(count, sizeof(struct ui_element));
+        if (!result->elements) {
+            snprintf(result->error_msg, sizeof(result->error_msg),
+                     "Memory allocation failed");
+            CFRelease(elements);
+            if (focused_app) CFRelease(focused_app);
+            result->error = -6;
+            return result;
+        }
+
+        // Convert elements
+        for (CFIndex i = 0; i < count; i++) {
+            AXUIElementRef element = (AXUIElementRef)CFArrayGetValueAtIndex(elements, i);
+            if (element) {
+                convert_ax_element(element, &result->elements[i]);
+
+                // Debug output: print detected element info
+                fprintf(stderr, "DEBUG: Element %ld: x=%d, y=%d, w=%d, h=%d, name='%s', role='%s'\n",
+                        (long)i,
+                        result->elements[i].x,
+                        result->elements[i].y,
+                        result->elements[i].w,
+                        result->elements[i].h,
+                        result->elements[i].name ? result->elements[i].name : "(null)",
+                        result->elements[i].role ? result->elements[i].role : "(null)");
+            }
+        }
+
+        result->count = count;
+        result->error = 0;
+
+        // Remove overlapping elements to reduce crowding
+        remove_overlapping_elements(result);
+
+        CFRelease(elements);
+        if (focused_app) CFRelease(focused_app);
+
         return result;
     }
 
-    if (!focused_app) {
-        snprintf(result->error_msg, sizeof(result->error_msg),
-                 "No focused application");
-        result->error = -3;
-        return result;
-    }
-
-    // Get focused window
-    AXUIElementRef focused_window = NULL;
-    if (AXUIElementCopyAttributeValue(focused_app, kAXFocusedWindowAttribute, (CFTypeRef *)&focused_window) != kAXErrorSuccess) {
-        snprintf(result->error_msg, sizeof(result->error_msg),
-                 "Could not get focused window");
-        CFRelease(focused_app);
-        result->error = -4;
-        return result;
-    }
-
+    // Original focused window detection path
     if (!focused_window) {
         snprintf(result->error_msg, sizeof(result->error_msg),
                  "No focused window");
-        CFRelease(focused_app);
-        result->error = -5;
+        if (focused_app) CFRelease(focused_app);
+        result->error = -7;
         return result;
     }
 
-    // Collect interactive elements
+    // Collect interactive elements from focused window
     CFMutableArrayRef elements = CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
     if (!elements) {
         snprintf(result->error_msg, sizeof(result->error_msg),
                  "Memory allocation failed");
         CFRelease(focused_window);
         CFRelease(focused_app);
-        result->error = -6;
+        result->error = -8;
         return result;
     }
 
@@ -265,7 +430,7 @@ static struct ui_detection_result *accessibility_detect_ui_elements(void)
     if (count == 0) {
         snprintf(result->error_msg, sizeof(result->error_msg),
                  "No interactive elements detected");
-        result->error = -7;
+        result->error = -9;
         CFRelease(elements);
         CFRelease(focused_window);
         CFRelease(focused_app);
@@ -279,7 +444,7 @@ static struct ui_detection_result *accessibility_detect_ui_elements(void)
         CFRelease(elements);
         CFRelease(focused_window);
         CFRelease(focused_app);
-        result->error = -8;
+        result->error = -10;
         return result;
     }
 
@@ -294,7 +459,8 @@ static struct ui_detection_result *accessibility_detect_ui_elements(void)
     result->count = count;
     result->error = 0;
 
-    // Cleanup
+    remove_overlapping_elements(result);
+
     CFRelease(elements);
     CFRelease(focused_window);
     CFRelease(focused_app);

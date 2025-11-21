@@ -19,6 +19,17 @@ extern "C" {
 #endif
 
 
+static void osx_send_paste()
+{
+	int shifted;
+	
+	/* Send Cmd+V (same pattern as osx_copy_selection) */
+	send_key(osx_input_lookup_code("leftmeta", &shifted), 1);
+	send_key(osx_input_lookup_code("v", &shifted), 1);
+	send_key(osx_input_lookup_code("leftmeta", &shifted), 0);
+	send_key(osx_input_lookup_code("v", &shifted), 0);
+}
+
 /* Insert text mode - uses osascript for text input */
 static int osx_insert_text_mode(screen_t scr)
 {
@@ -57,18 +68,6 @@ static int osx_insert_text_mode(screen_t scr)
 	}
 	
 	return 0;
-}
-
-/* Send paste key (Cmd+V) - copy already exists as osx_copy_selection */
-static void osx_send_paste()
-{
-	int shifted;
-	
-	/* Send Cmd+V (same pattern as osx_copy_selection) */
-	send_key(osx_input_lookup_code("leftmeta", &shifted), 1);
-	send_key(osx_input_lookup_code("v", &shifted), 1);
-	send_key(osx_input_lookup_code("leftmeta", &shifted), 0);
-	send_key(osx_input_lookup_code("v", &shifted), 0);
 }
 
 static NSDictionary *get_font_attrs(const char *family, NSColor *color, int h)

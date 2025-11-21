@@ -146,77 +146,90 @@ static double calculate_overlap_ratio(struct ui_element *a, struct ui_element *b
 /**
  * Remove overlapping UI elements based on configurable thresholds
  * This function modifies the result in-place, removing overlapping elements
+ * Uses hint size for overlap detection instead of actual element size
  */
 void remove_overlapping_elements(struct ui_detection_result *result)
 {
     if (!result || !result->elements || result->count <= 1) {
         return;
     }
-    
+
     /* Get configuration values */
     int distance_threshold = 30;  /* Default */
     double area_threshold = 0.7;  /* Default */
-    
+
     distance_threshold = config_get_int("ui_overlap_threshold");
-    
+
     const char *area_str = config_get("ui_overlap_area_threshold");
     if (area_str) {
         area_threshold = atof(area_str);
     }
-    
+
+    /* Get hint size for overlap detection */
+    int hint_w = 20;  /* Default hint size */
+    int hint_h = 20;  /* Default hint size */
+
+    /* Try to get actual hint size from config */
+    int hint_size = config_get_int("hint_size");
+    if (hint_size > 0) {
+        hint_w = hint_size;
+        hint_h = hint_size;
+    }
+
     /* Mark elements for removal */
     char *keep = calloc(result->count, sizeof(char));
     if (!keep) {
         return; /* Memory allocation failed */
     }
-    
+
     /* Initially mark all elements to keep */
     for (size_t i = 0; i < result->count; i++) {
         keep[i] = 1;
     }
-    
-    /* Check each pair of elements */
+
+    /* Check each pair of elements for hint overlap */
     for (size_t i = 0; i < result->count; i++) {
         if (!keep[i]) continue;
-        
+
         for (size_t j = i + 1; j < result->count; j++) {
             if (!keep[j]) continue;
-            
+
             struct ui_element *elem_i = &result->elements[i];
             struct ui_element *elem_j = &result->elements[j];
-            
-            /* Calculate center points */
-            int center_i_x = elem_i->x + elem_i->w / 2;
-            int center_i_y = elem_i->y + elem_i->h / 2;
-            int center_j_x = elem_j->x + elem_j->w / 2;
-            int center_j_y = elem_j->y + elem_j->h / 2;
-            
-            /* Check distance threshold */
-            double distance = calculate_distance(center_i_x, center_i_y, center_j_x, center_j_y);
-            
+
+            /* Calculate hint positions (top-left corner of element) */
+            int hint_i_x = elem_i->x;
+            int hint_i_y = elem_i->y;
+            int hint_j_x = elem_j->x;
+            int hint_j_y = elem_j->y;
+
+            /* Check distance between hint positions */
+            double distance = calculate_distance(hint_i_x, hint_i_y, hint_j_x, hint_j_y);
+
             if (distance < distance_threshold) {
-                /* Elements are too close, remove the smaller one */
+                /* Hints are too close, remove one */
                 int area_i = elem_i->w * elem_i->h;
                 int area_j = elem_j->w * elem_j->h;
-                
+
                 if (area_i < area_j) {
                     keep[i] = 0;
-                    break; /* Element i is removed, no need to check further */
                 } else {
                     keep[j] = 0;
                 }
             } else {
-                /* Check area overlap */
-                double overlap = calculate_overlap_ratio(elem_i, elem_j);
-                
+                /* Check hint overlap areas */
+                struct ui_element hint_i = {hint_i_x, hint_i_y, hint_w, hint_h, NULL, NULL};
+                struct ui_element hint_j = {hint_j_x, hint_j_y, hint_w, hint_h, NULL, NULL};
+
+                double overlap = calculate_overlap_ratio(&hint_i, &hint_j);
+
                 if (overlap > area_threshold) {
-                    /* Significant overlap, remove the smaller element */
+                    /* Hints overlap significantly, remove one */
                     int area_i = elem_i->w * elem_i->h;
                     int area_j = elem_j->w * elem_j->h;
-                    
+
                     if (area_i < area_j) {
                         keep[i] = 0;
-                        break; /* Element i is removed, no need to check further */
                     } else {
                         keep[j] = 0;
                     }
@@ -256,9 +269,6 @@ void remove_overlapping_elements(struct ui_detection_result *result)
             free(result->elements);
             result->elements = new_elements;
             result->count = new_count;
-            
-            fprintf(stderr, "UI Utils: Removed %zu overlapping elements, %zu remaining (threshold: %dpx, area: %.1f)\n", 
-                    result->count - new_count, new_count, distance_threshold, area_threshold);
         }
     }
     
