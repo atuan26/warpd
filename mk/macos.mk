@@ -2,21 +2,39 @@
 
 CFILES=$(shell find src/*.c src/common/*.c)
 OBJCFILES=$(shell find src/platform/macos -name '*.m')
-CXXFILES=src/common/opencv_detector.cpp src/platform/macos/opencv_detector.cpp
-OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o)
+CXXFILES=src/common/opencv_detector.cpp
+OBJCPPFILES=src/platform/macos/opencv_detector.mm
+OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o) $(OBJCPPFILES:.mm=.o)
 
-# OpenCV support - always enabled
-LDFLAGS+=-lopencv_imgproc -lopencv_core -lstdc++
+# Determine Homebrew prefix based on architecture
+BREW_PREFIX := $(shell if [ "$(shell uname -m)" = "arm64" ] && [ -d "/opt/homebrew" ]; then echo "/opt/homebrew"; else echo "/usr/local"; fi)
 
-RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon
+# Set up OpenCV paths
+OPENCV_INCLUDE := $(BREW_PREFIX)/opt/opencv/include/opencv4
+OPENCV_LIB := $(BREW_PREFIX)/opt/opencv/lib
+CXXFLAGS += -I$(OPENCV_INCLUDE)
+
+# Configure OpenCV libraries
+OPENCV_PC := $(wildcard $(BREW_PREFIX)/Cellar/opencv/*/lib/pkgconfig/opencv4.pc)
+ifneq ($(OPENCV_PC),)
+    OPENCV_LIBS := $(shell grep "^Libs:" $(OPENCV_PC) | sed 's/^Libs: //' | sed 's/-L[^ ]* //g')
+    LDFLAGS += -L$(OPENCV_LIB) $(OPENCV_LIBS) -lstdc++
+else
+    LDFLAGS += -L$(OPENCV_LIB) -lopencv_imgproc -lopencv_core -lstdc++
+endif
+
+RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia
 
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
+%.o: %.mm
+	$(CXX) -x objective-c++ -c $< -o $@ $(CXXFLAGS)
+
 all: $(OBJECTS)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd-$(VERSION) $(OBJECTS) -framework cocoa -framework carbon $(LDFLAGS)
-	./codesign/sign.sh bin/warpd-$(VERSION)
+	$(CXX) -o bin/warpd-$(VERSION) $(OBJECTS) $(LDFLAGS) -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia
+	./codesign/sign.sh bin/warpd-$(VERSION) || true
 	@echo "Built: bin/warpd-$(VERSION)"
 rel: clean
 	$(CC) -o bin/warpd-arm $(CFILES) $(OBJCFILES) -target arm64-apple-macos $(CFLAGS) $(RELFLAGS)
