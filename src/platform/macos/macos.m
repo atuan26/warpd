@@ -6,6 +6,19 @@
 
 #include "macos.h"
 
+// Forward declarations for UI detection functions
+#ifdef __cplusplus
+extern "C" {
+#endif
+	struct ui_detection_result *opencv_detect_ui_elements(void);
+	void opencv_free_ui_elements(struct ui_detection_result *result);
+	struct ui_detection_result *macos_detect_ui_elements(void);
+	void macos_free_ui_elements(struct ui_detection_result *result);
+#ifdef __cplusplus
+}
+#endif
+
+
 /* Insert text mode - uses osascript for text input */
 static int osx_insert_text_mode(screen_t scr)
 {
@@ -240,6 +253,8 @@ static void *mainloop(void *arg)
 		.monitor_file = osx_monitor_file,
 		.insert_text_mode = osx_insert_text_mode,
 		.send_paste = osx_send_paste,
+		.detect_ui_elements = macos_detect_ui_elements,
+		.free_ui_elements = macos_free_ui_elements,
 	};
 
 	main(&platform);

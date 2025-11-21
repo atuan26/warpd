@@ -3,7 +3,7 @@
 CFILES=$(shell find src/*.c src/common/*.c)
 OBJCFILES=$(shell find src/platform/macos -name '*.m')
 CXXFILES=src/common/opencv_detector.cpp
-OBJCPPFILES=src/platform/macos/opencv_detector.mm
+OBJCPPFILES=$(shell find src/platform/macos -name '*.mm')
 OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o) $(OBJCPPFILES:.mm=.o)
 
 # Determine Homebrew prefix based on architecture
@@ -23,7 +23,7 @@ else
     LDFLAGS += -L$(OPENCV_LIB) -lopencv_imgproc -lopencv_core -lstdc++
 endif
 
-RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia
+RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia -framework ApplicationServices
 
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
@@ -33,7 +33,7 @@ RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework Scree
 
 all: $(OBJECTS)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd-$(VERSION) $(OBJECTS) $(LDFLAGS) -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia
+	$(CXX) -o bin/warpd-$(VERSION) $(OBJECTS) $(LDFLAGS) -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia -framework ApplicationServices
 	./codesign/sign.sh bin/warpd-$(VERSION) || true
 	@echo "Built: bin/warpd-$(VERSION)"
 rel: clean
