@@ -10,6 +10,59 @@
 extern struct ui_detection_result *linux_detect_ui_elements(void);
 extern void linux_free_ui_elements(struct ui_detection_result *result);
 
+/* Insert text mode - uses zenity for text input */
+static int wayland_insert_text_mode(screen_t scr)
+{
+	fprintf(stderr, "\n=== INSERT MODE (Wayland) ===\n");
+	
+	way_screen_clear(scr);
+	way_commit();
+	
+	FILE *fp = popen("zenity --entry --title='Insert Text' --text='Type text and press OK:' 2>/dev/null", "r");
+	if (!fp) {
+		fprintf(stderr, "ERROR: zenity not found. Install: sudo apt install zenity\n");
+		return 0;
+	}
+	
+	char text_buffer[1024] = {0};
+	if (fgets(text_buffer, sizeof(text_buffer), fp) != NULL) {
+		size_t len = strlen(text_buffer);
+		if (len > 0 && text_buffer[len-1] == '\n') {
+			text_buffer[len-1] = '\0';
+		}
+		
+		int status = pclose(fp);
+		
+		if (WIFEXITED(status) && WEXITSTATUS(status) == 0 && text_buffer[0] != '\0') {
+			FILE *clip = popen("wl-copy 2>/dev/null", "w");
+			if (clip) {
+				fputs(text_buffer, clip);
+				pclose(clip);
+				usleep(100000);
+				wayland_send_paste();
+				return 1;
+			} else {
+				fprintf(stderr, "ERROR: wl-clipboard not found. Install: sudo apt install wl-clipboard\n");
+			}
+		}
+	} else {
+		pclose(fp);
+	}
+	
+	return 0;
+}
+
+/* Send paste key (Ctrl+V) - copy already exists as way_copy_selection */
+static void wayland_send_paste()
+{
+	/* TODO: Implement using Wayland virtual keyboard protocol
+	 * Requires zwp_virtual_keyboard_v1 protocol support
+	 * Similar to how mouse events are sent via zwlr_virtual_pointer_v1
+	 */
+	fprintf(stderr, "Paste (Ctrl+V): Not yet implemented for Wayland\n");
+	fprintf(stderr, "Workaround: Use system paste shortcut manually\n");
+}
+
 #define UNIMPLEMENTED { \
 	fprintf(stderr, "FATAL: wayland: %s unimplemented\n", __func__); \
 	exit(-1);							 \
@@ -243,4 +296,10 @@ void wayland_init(struct platform *platform)
 	/* UI element detection for smart hint mode */
 	platform->detect_ui_elements = linux_detect_ui_elements;
 	platform->free_ui_elements = linux_free_ui_elements;
+	
+	/* Insert text mode */
+	platform->insert_text_mode = wayland_insert_text_mode;
+	
+	/* Paste key (copy already exists as way_copy_selection) */
+	platform->send_paste = wayland_send_paste;
 }

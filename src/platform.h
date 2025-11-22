@@ -128,6 +128,21 @@ struct platform {
 	 *          NULL if detection not supported on this platform
 	 */
 	struct ui_detection_result *(*detect_ui_elements)();
+	
+	/*
+	 * Insert text mode - shows dialog, allows editing, and pastes result
+	 * 
+	 * Workflow:
+	 * 1. Copies current selection to clipboard
+	 * 2. Shows text input dialog pre-filled with clipboard content
+	 * 3. If user submits (Enter), pastes the edited text
+	 * 4. If user cancels (Escape), does nothing
+	 * 
+	 * Returns 1 if text was inserted, 0 if cancelled
+	 */
+	int (*insert_text_mode)(screen_t scr);
+	
+	void (*send_paste)();
 
 	/*
 	 * Free UI detection result returned by detect_ui_elements()

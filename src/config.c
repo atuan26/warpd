@@ -28,8 +28,11 @@ static struct {
 	/* Normal mode keys */
 
 	{ "exit", "esc", "Exit the currently active warpd session.", OPT_KEY },
+	{ "toggle_insert_mode", "i", "Show text input dialog. Pre-fills with clipboard. Type text and press Enter to paste, or Escape to cancel.", OPT_KEY },
 	{ "drag", "v", "Toggle drag mode (mnemonic (v)isual mode).", OPT_KEY },
+	{ "copy", "y", "Send the copy key", OPT_KEY },
 	{ "copy_and_exit", "c", "Send the copy key and exit (useful in combination with v).", OPT_KEY },
+	{ "paste", "p", "Send the paste key", OPT_KEY },
 	{ "accelerator", "a", "Increase the acceleration of the pointer while held.", OPT_KEY },
 	{ "decelerator", "d", "Decrease the speed of the pointer while held.", OPT_KEY },
 	{ "buttons", "m , .",  "A space separated list of mouse buttons (2 is middle click).", OPT_BUTTON },
@@ -62,6 +65,9 @@ static struct {
 	{ "cursor_image_loading", "", "Path to PNG image for loading cursor (empty = use built-in).", OPT_STRING },
 	{ "cursor_animation_speed", "100", "GIF animation speed percentage (100 = normal, 200 = 2x faster, 50 = half speed).", OPT_INT },
 	{ "cursor_max_frames", "60", "Maximum number of frames to load from animated GIFs (lower = faster loading).", OPT_INT },
+	{ "pause_indicator", "topleft", "Position of pause mode indicator (topleft, topright, bottomleft, bottomright, none).", OPT_STRING },
+	{ "pause_indicator_color", "#FFA500", "Color of the pause mode indicator (rgba hex value).", OPT_STRING },
+	{ "pause_cursor_color", "#00FF00", "Color of the cursor in pause/insert mode (rgba hex value).", OPT_STRING },
 
 	{ "cursor_size", "7", "The height of the pointer in normal mode.", OPT_INT },
 	{ "repeat_interval", "20", "The number of milliseconds before repeating a movement event.", OPT_INT },

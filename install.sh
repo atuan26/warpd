@@ -32,15 +32,17 @@ if command -v apt &> /dev/null; then
         git make gcc \
         libxi-dev libxinerama-dev libxft-dev \
         libxfixes-dev libxtst-dev libx11-dev \
-        libcairo2-dev libxkbcommon-dev libwayland-dev \
-        libatspi2.0-dev libdbus-1-dev libglib2.0-dev
+        libcairo2-dev libxkbcommon-dev liZenity dialogbwayland-dev \
+        libatspi2.0-dev libdbus-1-dev libglib2.0-dev \
+        zenity xclip wl-clipboard
 elif command -v pacman &> /dev/null; then
     echo "Detected Arch Linux system"
     sudo pacman -S --needed --noconfirm \
         git make gcc \
         libxi libxinerama libxft libxfixes libxtst libx11 \
         cairo libxkbcommon wayland \
-        at-spi2-core dbus glib2
+        at-spi2-core dbus glib2 \
+        zenity xclip wl-clipboard
 elif command -v dnf &> /dev/null; then
     echo "Detected Fedora/RHEL system"
     sudo dnf install -y \
@@ -48,7 +50,8 @@ elif command -v dnf &> /dev/null; then
         libXi-devel libXinerama-devel libXft-devel \
         libXfixes-devel libXtst-devel libX11-devel \
         cairo-devel libxkbcommon-devel wayland-devel \
-        at-spi2-core-devel dbus-devel glib2-devel
+        at-spi2-core-devel dbus-devel glib2-devel \
+        zenity xclip wl-clipboard
 else
     echo "Error: Unsupported distribution"
     echo "Please install dependencies manually and run: make && sudo make install"
@@ -111,13 +114,6 @@ fi
 
 echo ""
 echo "=== Installation Complete! ==="
-echo ""
-echo "To start warpd, run: warpd"
-echo ""
-echo "Smart Hint Mode usage:"
-echo "  1. Press Alt+Meta+c to activate normal mode"
-echo "  2. Press 'f' to activate smart hint mode"
-echo "  3. Type the letter labels to navigate to elements"
 echo ""
 echo "For more information, see: man warpd"
 echo ""

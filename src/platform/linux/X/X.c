@@ -15,6 +15,59 @@ extern void linux_free_ui_elements(struct ui_detection_result *result);
 /* AT-SPI cleanup function */
 extern void atspi_cleanup(void);
 
+static int x_insert_text_mode(screen_t scr)
+{
+	x_copy_selection();
+	usleep(50000);
+	
+	x_screen_clear(scr);
+	x_commit();
+	
+	FILE *fp = popen("zenity --entry --title='Insert Text' --text='Type text and press OK:' 2>/dev/null", "r");
+	if (!fp) {
+		fprintf(stderr, "ERROR: zenity not found. Install: sudo apt install zenity\n");
+		return 0;
+	}
+	
+	char text_buffer[1024] = {0};
+	if (fgets(text_buffer, sizeof(text_buffer), fp) != NULL) {
+		size_t len = strlen(text_buffer);
+		if (len > 0 && text_buffer[len-1] == '\n') {
+			text_buffer[len-1] = '\0';
+		}
+		
+		int status = pclose(fp);
+		
+		if (WIFEXITED(status) && WEXITSTATUS(status) == 0 && text_buffer[0] != '\0') {
+			FILE *clip = popen("xclip -selection clipboard 2>/dev/null || xsel --clipboard --input 2>/dev/null", "w");
+			if (clip) {
+				fputs(text_buffer, clip);
+				pclose(clip);
+				usleep(100000);
+				x_send_paste();
+				return 1;
+			} else {
+				fprintf(stderr, "ERROR: xclip/xsel not found. Install: sudo apt install xclip\n");
+			}
+		}
+	} else {
+		pclose(fp);
+	}
+	
+	return 0;
+}
+
+/* Send paste key (Ctrl+V) - copy already exists as x_copy_selection */
+static void x_send_paste()
+{
+	/* Send Ctrl+V using XTest */
+	XTestFakeKeyEvent(dpy, XKeysymToKeycode(dpy, XK_Control_L), True, CurrentTime);
+	XTestFakeKeyEvent(dpy, XKeysymToKeycode(dpy, XK_v), True, CurrentTime);
+	XTestFakeKeyEvent(dpy, XKeysymToKeycode(dpy, XK_v), False, CurrentTime);
+	XTestFakeKeyEvent(dpy, XKeysymToKeycode(dpy, XK_Control_L), False, CurrentTime);
+	XSync(dpy, False);
+}
+
 struct monitored_file monitored_files[32];
 size_t nr_monitored_files = 0;
 
@@ -245,4 +298,10 @@ void x_init(struct platform *platform)
 	/* UI element detection for smart hint mode */
 	platform->detect_ui_elements = linux_detect_ui_elements;
 	platform->free_ui_elements = linux_free_ui_elements;
+	
+	/* Insert text mode */
+	platform->insert_text_mode = x_insert_text_mode;
+	
+	/* Paste key (copy already exists as x_copy_selection) */
+	platform->send_paste = x_send_paste;
 }
