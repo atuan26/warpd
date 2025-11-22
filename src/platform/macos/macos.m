@@ -30,7 +30,70 @@ static void osx_send_paste()
 	send_key(osx_input_lookup_code("v", &shifted), 0);
 }
 
-/* Insert text mode - uses osascript for text input */
+/* Simple text input window - minimal UI with just a text field */
+@interface SimpleTextInputWindow : NSWindow <NSTextFieldDelegate>
+@property (nonatomic, strong) NSTextField *textField;
+@property (nonatomic, assign) BOOL submitted;
+@end
+
+@implementation SimpleTextInputWindow
+
+- (instancetype)init
+{
+	NSRect frame = NSMakeRect(0, 0, 400, 40);
+	self = [super initWithContentRect:frame
+			        styleMask:NSWindowStyleMaskBorderless
+			          backing:NSBackingStoreBuffered
+			            defer:NO];
+	if (self) {
+		[self setLevel:NSFloatingWindowLevel];
+		[self setOpaque:NO];
+		[self setBackgroundColor:[NSColor colorWithWhite:0.95 alpha:0.95]];
+		[self setHasShadow:YES];
+		
+		// Center on screen
+		[self center];
+		
+		// Create text field
+		NSRect textFrame = NSMakeRect(5, 5, 390, 30);
+		_textField = [[NSTextField alloc] initWithFrame:textFrame];
+		[_textField setDelegate:self];
+		[_textField setBezeled:NO];
+		[_textField setDrawsBackground:NO];
+		[_textField setFont:[NSFont systemFontOfSize:16]];
+		[_textField setFocusRingType:NSFocusRingTypeNone];
+		
+		[[self contentView] addSubview:_textField];
+		_submitted = NO;
+	}
+	return self;
+}
+
+- (void)controlTextDidEndEditing:(NSNotification *)notification
+{
+	NSInteger reason = [[[notification userInfo] objectForKey:@"NSTextMovement"] integerValue];
+	if (reason == NSReturnTextMovement) {
+		_submitted = YES;
+		[NSApp stopModal];
+	} else if (reason == NSCancelTextMovement) {
+		_submitted = NO;
+		[NSApp stopModal];
+	}
+}
+
+- (void)keyDown:(NSEvent *)event
+{
+	if ([event keyCode] == 53) { // Escape key
+		_submitted = NO;
+		[NSApp stopModal];
+	} else {
+		[super keyDown:event];
+	}
+}
+
+@end
+
+/* Insert text mode - uses minimal native Cocoa window */
 static int osx_insert_text_mode(screen_t scr)
 {
 	osx_copy_selection();
@@ -39,32 +102,37 @@ static int osx_insert_text_mode(screen_t scr)
 	osx_screen_clear(scr);
 	osx_commit();
 	
-	FILE *fp = popen("osascript -e 'tell application \"System Events\"' -e 'activate' -e 'set userInput to text returned of (display dialog \"Type text and press OK:\" default answer \"\" buttons {\"Cancel\", \"OK\"} default button \"OK\")' -e 'end tell' 2>/dev/null", "r");
-	if (!fp) {
-		return 0;
-	}
+	__block int result = 0;
+	__block char text_buffer[1024] = {0};
 	
-	char text_buffer[1024] = {0};
-	if (fgets(text_buffer, sizeof(text_buffer), fp) != NULL) {
-		size_t len = strlen(text_buffer);
-		if (len > 0 && text_buffer[len-1] == '\n') {
-			text_buffer[len-1] = '\0';
-		}
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		SimpleTextInputWindow *window = [[SimpleTextInputWindow alloc] init];
+		[window makeKeyAndOrderFront:nil];
+		[window makeFirstResponder:window.textField];
 		
-		int status = pclose(fp);
+		[NSApp runModalForWindow:window];
 		
-		if (WIFEXITED(status) && WEXITSTATUS(status) == 0 && text_buffer[0] != '\0') {
-			FILE *clip = popen("pbcopy", "w");
-			if (clip) {
-				fputs(text_buffer, clip);
-				pclose(clip);
-				usleep(100000);
-				osx_send_paste();
-				return 1;
+		if (window.submitted) {
+			NSString *text = [window.textField stringValue];
+			if (text && [text length] > 0) {
+				strncpy(text_buffer, [text UTF8String], sizeof(text_buffer) - 1);
+				text_buffer[sizeof(text_buffer) - 1] = '\0';
+				result = 1;
 			}
 		}
-	} else {
-		pclose(fp);
+		
+		[window orderOut:nil];
+	});
+	
+	if (result && text_buffer[0] != '\0') {
+		FILE *clip = popen("pbcopy", "w");
+		if (clip) {
+			fputs(text_buffer, clip);
+			pclose(clip);
+			usleep(100000);
+			osx_send_paste();
+			return 1;
+		}
 	}
 	
 	return 0;
