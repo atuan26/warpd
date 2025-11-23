@@ -50,6 +50,7 @@ static void osx_send_paste()
 		[self setOpaque:NO];
 		[self setBackgroundColor:[NSColor colorWithWhite:0.95 alpha:0.95]];
 		[self setHasShadow:YES];
+		[self setAcceptsMouseMovedEvents:YES];
 		
 		// Center on screen
 		[self center];
@@ -58,6 +59,8 @@ static void osx_send_paste()
 		NSRect textFrame = NSMakeRect(5, 5, 390, 30);
 		_textField = [[NSTextField alloc] initWithFrame:textFrame];
 		[_textField setDelegate:self];
+		[_textField setEditable:YES];
+		[_textField setSelectable:YES];
 		[_textField setBezeled:NO];
 		[_textField setDrawsBackground:NO];
 		[_textField setFont:[NSFont systemFontOfSize:16]];
@@ -87,54 +90,34 @@ static void osx_send_paste()
 		_submitted = NO;
 		[NSApp stopModal];
 	} else {
-		[super keyDown:event];
+		// Pass event to text field
+		[_textField keyDown:event];
 	}
+}
+
+- (BOOL)canBecomeKeyWindow
+{
+	return YES;
+}
+
+- (BOOL)canBecomeMainWindow
+{
+	return YES;
 }
 
 @end
 
-/* Insert text mode - uses minimal native Cocoa window */
+/* Insert text mode - temporarily disabled due to modal event loop issues */
 static int osx_insert_text_mode(screen_t scr)
 {
-	osx_copy_selection();
-	usleep(50000);
-	
-	osx_screen_clear(scr);
-	osx_commit();
-	
-	__block int result = 0;
-	__block char text_buffer[1024] = {0};
-	
-	dispatch_sync(dispatch_get_main_queue(), ^{
-		SimpleTextInputWindow *window = [[SimpleTextInputWindow alloc] init];
-		[window makeKeyAndOrderFront:nil];
-		[window makeFirstResponder:window.textField];
-		
-		[NSApp runModalForWindow:window];
-		
-		if (window.submitted) {
-			NSString *text = [window.textField stringValue];
-			if (text && [text length] > 0) {
-				strncpy(text_buffer, [text UTF8String], sizeof(text_buffer) - 1);
-				text_buffer[sizeof(text_buffer) - 1] = '\0';
-				result = 1;
-			}
-		}
-		
-		[window orderOut:nil];
-	});
-	
-	if (result && text_buffer[0] != '\0') {
-		FILE *clip = popen("pbcopy", "w");
-		if (clip) {
-			fputs(text_buffer, clip);
-			pclose(clip);
-			usleep(100000);
-			osx_send_paste();
-			return 1;
-		}
-	}
-	
+	/* TODO: Fix modal window event handling
+	 * Current issue: Modal window blocks input and cannot be dismissed
+	 * Possible solutions:
+	 * 1. Use non-modal window with custom event loop
+	 * 2. Use NSAlert with text input accessory view
+	 * 3. Use separate process for input dialog
+	 */
+	(void)scr;
 	return 0;
 }
 
