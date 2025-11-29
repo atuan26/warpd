@@ -45,35 +45,57 @@ static void convert_ax_element(AXUIElementRef element, struct ui_element *dest)
         CFRelease(size);
     }
 
-    // Get name/description
-    CFStringRef name = NULL;
-    if (AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, (CFTypeRef *)&name) == kAXErrorSuccess) {
-        if (name) {
-            CFIndex length = CFStringGetLength(name) + 1;
-            dest->name = (char *)malloc(length);
-            if (dest->name) {
-                CFStringGetCString(name, dest->name, length, kCFStringEncodingUTF8);
-            }
-            CFRelease(name);
+    CFStringRef description = NULL;
+    CFStringRef title = NULL;
+    CFStringRef value = NULL;
+    CFStringRef label = NULL;
+    
+    char descStr[256] = {0};
+    char titleStr[256] = {0};
+    char valueStr[256] = {0};
+    char labelStr[256] = {0};
+
+    if (AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, (CFTypeRef *)&description) == kAXErrorSuccess && description) {
+        CFStringGetCString(description, descStr, sizeof(descStr), kCFStringEncodingUTF8);
+        CFRelease(description);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, kAXTitleAttribute, (CFTypeRef *)&title) == kAXErrorSuccess && title) {
+        CFStringGetCString(title, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
+        CFRelease(title);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, kAXValueAttribute, (CFTypeRef *)&value) == kAXErrorSuccess && value) {
+        if (CFGetTypeID(value) == CFStringGetTypeID()) {
+            CFStringGetCString((CFStringRef)value, valueStr, sizeof(valueStr), kCFStringEncodingUTF8);
         }
+        CFRelease(value);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, CFSTR("AXLabel"), (CFTypeRef *)&label) == kAXErrorSuccess && label) {
+        CFStringGetCString(label, labelStr, sizeof(labelStr), kCFStringEncodingUTF8);
+        CFRelease(label);
     }
 
-    // If no description, try title
-    if (!dest->name) {
-        CFStringRef title = NULL;
-        if (AXUIElementCopyAttributeValue(element, kAXTitleAttribute, (CFTypeRef *)&title) == kAXErrorSuccess) {
-            if (title) {
-                CFIndex length = CFStringGetLength(title) + 1;
-                dest->name = (char *)malloc(length);
-                if (dest->name) {
-                    CFStringGetCString(title, dest->name, length, kCFStringEncodingUTF8);
-                }
-                CFRelease(title);
-            }
-        }
+    static int debug_count = 0;
+    if (debug_count < 5) {
+        fprintf(stderr, "DEBUG RAW [macOS]: Description='%s' Title='%s' Value='%s' Label='%s'\n",
+            descStr, titleStr, valueStr, labelStr);
+        debug_count++;
     }
 
-    // Get role
+    if (descStr[0]) {
+        dest->name = strdup(descStr);
+    } else if (titleStr[0]) {
+        dest->name = strdup(titleStr);
+    } else if (labelStr[0]) {
+        dest->name = strdup(labelStr);
+    } else if (valueStr[0]) {
+        dest->name = strdup(valueStr);
+    } else {
+        dest->name = NULL;
+    }
+
     CFStringRef role = NULL;
     if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, (CFTypeRef *)&role) == kAXErrorSuccess) {
         if (role) {
@@ -83,6 +105,86 @@ static void convert_ax_element(AXUIElementRef element, struct ui_element *dest)
                 CFStringGetCString(role, dest->role, length, kCFStringEncodingUTF8);
             }
             CFRelease(role);
+        }
+    }
+}
+
+/**
+ * Dump UI tree to file for debugging
+ */
+static void dump_element_tree(FILE *fp, AXUIElementRef element, int depth, int max_depth)
+{
+    if (!element || depth > max_depth)
+        return;
+    
+    for (int i = 0; i < depth * 2; i++)
+        fprintf(fp, " ");
+    
+    CFStringRef role = NULL;
+    CFStringRef title = NULL;
+    CFStringRef desc = NULL;
+    AXValueRef position = NULL;
+    AXValueRef size = NULL;
+    CGPoint point = CGPointZero;
+    CGSize dimensions = CGSizeZero;
+    
+    char roleStr[256] = {0};
+    char titleStr[256] = {0};
+    char descStr[256] = {0};
+    
+    if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, (CFTypeRef *)&role) == kAXErrorSuccess && role) {
+        CFStringGetCString(role, roleStr, sizeof(roleStr), kCFStringEncodingUTF8);
+        CFRelease(role);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, kAXTitleAttribute, (CFTypeRef *)&title) == kAXErrorSuccess && title) {
+        CFStringGetCString(title, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
+        CFRelease(title);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, (CFTypeRef *)&desc) == kAXErrorSuccess && desc) {
+        CFStringGetCString(desc, descStr, sizeof(descStr), kCFStringEncodingUTF8);
+        CFRelease(desc);
+    }
+    
+    int x = 0, y = 0, w = 0, h = 0;
+    if (AXUIElementCopyAttributeValue(element, kAXPositionAttribute, (CFTypeRef *)&position) == kAXErrorSuccess) {
+        if (AXValueGetValue(position, kAXValueCGPointType, &point)) {
+            x = (int)point.x;
+            y = (int)point.y;
+        }
+        CFRelease(position);
+    }
+    
+    if (AXUIElementCopyAttributeValue(element, kAXSizeAttribute, (CFTypeRef *)&size) == kAXErrorSuccess) {
+        if (AXValueGetValue(size, kAXValueCGSizeType, &dimensions)) {
+            w = (int)dimensions.width;
+            h = (int)dimensions.height;
+        }
+        CFRelease(size);
+    }
+    
+    fprintf(fp, "[%s] name='%s' x=%d y=%d w=%d h=%d", 
+        roleStr[0] ? roleStr : "unknown",
+        titleStr[0] ? titleStr : (descStr[0] ? descStr : ""),
+        x, y, w, h);
+    
+    if (descStr[0] && titleStr[0])
+        fprintf(fp, " desc='%s'", descStr);
+    
+    fprintf(fp, "\n");
+    
+    CFArrayRef children = NULL;
+    if (AXUIElementCopyAttributeValue(element, kAXChildrenAttribute, (CFTypeRef *)&children) == kAXErrorSuccess) {
+        if (children) {
+            CFIndex count = CFArrayGetCount(children);
+            for (CFIndex i = 0; i < count; i++) {
+                AXUIElementRef child = (AXUIElementRef)CFArrayGetValueAtIndex(children, i);
+                if (child) {
+                    dump_element_tree(fp, child, depth + 1, max_depth);
+                }
+            }
+            CFRelease(children);
         }
     }
 }
@@ -423,6 +525,15 @@ static struct ui_detection_result *accessibility_detect_ui_elements(void)
         return result;
     }
 
+    // FILE *dump_fp = fopen("ui_tree_dump_macos.txt", "w");
+    // if (dump_fp) {
+    //     fprintf(dump_fp, "macOS Accessibility API Tree Dump\n");
+    //     fprintf(dump_fp, "==================================\n\n");
+    //     dump_element_tree(dump_fp, focused_window, 0, 25);
+    //     fclose(dump_fp);
+    //     fprintf(stderr, "macOS: Tree dumped to ui_tree_dump_macos.txt\n");
+    // }
+    
     collect_interactive_elements(focused_window, elements);
 
     // Convert to platform format

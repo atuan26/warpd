@@ -17,6 +17,7 @@ static struct {
 	{ "hint_activation_key", "A-M-x", "Activates hint mode.", OPT_KEY },
 	{ "hint2_activation_key", "A-M-X", "Activate two pass hint mode.", OPT_KEY },
 	{ "smart_hint_activation_key", "A-M-f", "Activate smart hint mode (element-based detection).", OPT_KEY },
+	{ "smart_hint_mode", "numeric", "Smart hint label mode: 'numeric' (Vimium-style with fuzzy text filter) or 'alphabet' (classic label matching).", OPT_STRING },
 	{ "grid_activation_key", "A-M-g", "Activates grid mode and allows for further manipulation of the pointer using the mapped keys.", OPT_KEY },
 	{ "history_activation_key", "A-M-h", "Activate history mode.", OPT_KEY },
 	{ "screen_activation_key", "A-M-s", "Activate (s)creen selection mode.", OPT_KEY },
@@ -101,7 +102,8 @@ static struct {
 	{ "grid_color", "#1c1c1e", "The color of the grid.", OPT_STRING },
 	{ "grid_border_color", "#ffffff", "The color of the grid border.", OPT_STRING },
 
-	{ "smart_hint_exit", "esc", "Exit smart hint mode and return to normal mode.", OPT_KEY },
+	{ "smart_hint_exit", "esc capslock", "Exit smart hint mode and return to normal mode (space-separated list of keys).", OPT_KEY },
+	{ "smart_hint_select", "enter space", "Select highlighted hint in numeric mode.", OPT_KEY },
 
 	/* OpenCV detection parameters (used as fallback for smart hint) */
 	{ "opencv_min_area", "100", "Minimum element area in pixels (OpenCV).", OPT_INT },

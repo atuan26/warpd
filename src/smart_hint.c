@@ -38,6 +38,8 @@ struct detection_context {
 #endif
 };
 static size_t nr_matched = 0;
+static int highlighted_index = 0;
+static screen_t g_current_screen;  /* For center-based sorting */
 
 char s_last_selected_hint[32] = {0};
 
@@ -70,16 +72,156 @@ static void *detection_thread(void *param)
 }
 
 /**
- * Filter hints based on prefix match
+ * Fuzzy match: check if all characters in pattern appear in order in text
  */
-static void filter_hints(screen_t scr, const char *prefix)
+static int fuzzy_match(const char *text, const char *pattern)
 {
+	if (!text || !pattern)
+		return 0;
+
+	const char *t = text;
+	const char *p = pattern;
+
+	while (*p) {
+		char pc = *p;
+		if (pc >= 'A' && pc <= 'Z')
+			pc = pc - 'A' + 'a';
+
+		int found = 0;
+		while (*t) {
+			char tc = *t;
+			if (tc >= 'A' && tc <= 'Z')
+				tc = tc - 'A' + 'a';
+
+			t++;
+			if (tc == pc) {
+				found = 1;
+				break;
+			}
+		}
+
+		if (!found)
+			return 0;
+
+		p++;
+	}
+
+	return 1;
+}
+
+/**
+ * Compare function for sorting hints by distance from screen center
+ */
+static int compare_distance_from_center(const void *a, const void *b)
+{
+	const struct hint *ha = (const struct hint *)a;
+	const struct hint *hb = (const struct hint *)b;
+
+	/* Get screen dimensions to find center */
+	static int screen_center_x = -1;
+	static int screen_center_y = -1;
+
+	if (screen_center_x < 0) {
+		int sw, sh;
+		platform->screen_get_dimensions(g_current_screen, &sw, &sh);
+		screen_center_x = sw / 2;
+		screen_center_y = sh / 2;
+	}
+
+	/* Calculate distance from center for each hint (using center of hint) */
+	int ax = ha->x + ha->w / 2;
+	int ay = ha->y + ha->h / 2;
+	int bx = hb->x + hb->w / 2;
+	int by = hb->y + hb->h / 2;
+
+	int dist_a = (ax - screen_center_x) * (ax - screen_center_x) +
+	             (ay - screen_center_y) * (ay - screen_center_y);
+	int dist_b = (bx - screen_center_x) * (bx - screen_center_x) +
+	             (by - screen_center_y) * (by - screen_center_y);
+
+	return dist_a - dist_b;  /* Closer to center = smaller value */
+}
+
+/**
+ * Filter hints based on numeric and text filters
+ */
+static void filter_hints(screen_t scr, const char *num_filter, const char *text_filter)
+{
+	const char *mode = config_get("smart_hint_mode");
+	int is_numeric_mode = strcmp(mode, "numeric") == 0;
+
 	nr_matched = 0;
 
+	if (is_numeric_mode && (num_filter[0] || text_filter[0])) {
+		fprintf(stderr, "DEBUG: Filtering - num='%s' text='%s'\n", num_filter, text_filter);
+	}
+
 	for (size_t i = 0; i < nr_hints; i++) {
-		if (prefix && strncasecmp(hints[i].label, prefix, strlen(prefix)) == 0) {
-			matched[nr_matched++] = hints[i];
+		int matches = 1;
+
+		if (is_numeric_mode) {
+			if (num_filter && num_filter[0]) {
+				if (strncmp(hints[i].label, num_filter, strlen(num_filter)) != 0) {
+					matches = 0;
+				}
+			}
+
+			if (matches && text_filter && text_filter[0]) {
+				int fuzzy_result = hints[i].element_name ? fuzzy_match(hints[i].element_name, text_filter) : 0;
+				if (!fuzzy_result) {
+					matches = 0;
+				}
+				if (text_filter[0]) {
+					fprintf(stderr, "DEBUG: Hint %zu label='%s' name='%s' fuzzy_match=%d matches=%d\n",
+						i, hints[i].label,
+						hints[i].element_name ? hints[i].element_name : "(null)",
+						fuzzy_result, matches);
+				}
+			}
+		} else {
+			if (num_filter && num_filter[0]) {
+				if (strncasecmp(hints[i].label, num_filter, strlen(num_filter)) != 0) {
+					matches = 0;
+				}
+			}
 		}
+
+		if (matches) {
+			matched[nr_matched] = hints[i];
+			matched[nr_matched].highlighted = 0;
+			nr_matched++;
+		}
+	}
+
+	if (is_numeric_mode && (num_filter[0] || text_filter[0])) {
+		fprintf(stderr, "DEBUG: Matched %zu hints\n", nr_matched);
+	}
+
+	/* In numeric mode with filtering active, sort by distance from center and reassign labels */
+	if (is_numeric_mode && nr_matched > 0 && (num_filter[0] || text_filter[0])) {
+		/* Sort matched hints by distance from screen center */
+		qsort(matched, nr_matched, sizeof(struct hint), compare_distance_from_center);
+
+		/* Reassign numeric labels based on sorted order */
+		int label_len = 1;
+		size_t max_with_len = 9;
+		while (max_with_len < nr_matched) {
+			label_len++;
+			max_with_len = max_with_len * 10 + 9;
+		}
+
+		for (size_t i = 0; i < nr_matched; i++) {
+			snprintf(matched[i].label, sizeof(matched[i].label), "%0*zu", label_len, i + 1);
+		}
+
+		fprintf(stderr, "DEBUG: Reassigned labels based on distance from center\n");
+	}
+
+	if (nr_matched > 0) {
+		highlighted_index = 0;
+		matched[0].highlighted = 1;
+	} else {
+		highlighted_index = 0;
 	}
 
 	platform->screen_clear(scr);
@@ -110,28 +252,24 @@ static void get_hint_size(screen_t scr, int *w, int *h)
 /**
  * Generate alphabetic labels for hints (A, B, C, ... Z, AA, AB, ...)
  */
-static void generate_labels(struct hint *hints, size_t num_elements)
+static void generate_alphabetic_labels(struct hint *hints, size_t num_elements)
 {
 	int label_len = 1;
 	size_t max_elements = 26;
 
-	/* Calculate required label length */
 	while (max_elements < num_elements) {
 		label_len++;
 		max_elements *= 26;
 	}
 
-	/* Generate labels */
 	for (size_t i = 0; i < num_elements; i++) {
 		int remaining = i;
 		char label[16] = {0};
 
-		/* Initialize with 'A's */
 		for (int j = 0; j < label_len; j++) {
 			label[j] = 'A';
 		}
 
-		/* Convert index to base-26 representation */
 		for (int pos = 0; pos < label_len && remaining > 0; pos++) {
 			int val = remaining % 26;
 			label[pos] = 'A' + val;
@@ -139,6 +277,24 @@ static void generate_labels(struct hint *hints, size_t num_elements)
 		}
 
 		strncpy(hints[i].label, label, sizeof(hints[i].label) - 1);
+	}
+}
+
+/**
+ * Generate numeric labels for hints with equal length based on total count
+ */
+static void generate_numeric_labels(struct hint *hints, size_t num_elements)
+{
+	int label_len = 1;
+	size_t max_with_len = 9;
+
+	while (max_with_len < num_elements) {
+		label_len++;
+		max_with_len = max_with_len * 10 + 9;
+	}
+
+	for (size_t i = 0; i < num_elements; i++) {
+		snprintf(hints[i].label, sizeof(hints[i].label), "%0*zu", label_len, i + 1);
 	}
 }
 
@@ -160,7 +316,9 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 		return NULL;
 	}
 
-	/* Convert each element to a hint */
+	const char *mode = config_get("smart_hint_mode");
+	int is_numeric_mode = strcmp(mode, "numeric") == 0;
+
 	for (size_t i = 0; i < result->count; i++) {
 		struct ui_element *element = &result->elements[i];
 
@@ -168,9 +326,34 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 		hints[i].y = element->y;
 		hints[i].w = hint_w;
 		hints[i].h = hint_h;
+		hints[i].original_index = i;
+		hints[i].highlighted = 0;
+
+		if (element->name) {
+			hints[i].element_name = strdup(element->name);
+		} else if (element->role) {
+			hints[i].element_name = strdup(element->role);
+		} else {
+			hints[i].element_name = NULL;
+		}
 	}
 
-	generate_labels(hints, result->count);
+	if (is_numeric_mode) {
+		generate_numeric_labels(hints, result->count);
+		fprintf(stderr, "DEBUG: Created %zu hints in numeric mode:\n", result->count);
+		for (size_t i = 0; i < result->count && i < 10; i++) {
+			fprintf(stderr, "  Hint %zu: label='%s' name='%s' pos=(%d,%d)\n",
+				i, hints[i].label,
+				hints[i].element_name ? hints[i].element_name : "(null)",
+				hints[i].x, hints[i].y);
+		}
+		if (result->count > 10) {
+			fprintf(stderr, "  ... and %zu more hints\n", result->count - 10);
+		}
+	} else {
+		generate_alphabetic_labels(hints, result->count);
+	}
+
 	*out_count = result->count;
 
 	return hints;
@@ -183,60 +366,160 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 {
 	hints = _hints;
 	nr_hints = _nr_hints;
+	g_current_screen = scr;  /* Store for center-based sorting */
 
 	if (nr_hints == 0) {
 		fprintf(stderr, "No hints available\n");
 		return -1;
 	}
 
-	filter_hints(scr, "");
+	const char *mode = config_get("smart_hint_mode");
+	int is_numeric_mode = strcmp(mode, "numeric") == 0;
+
+	char num_buf[32] = {0};
+	char text_buf[64] = {0};
+	int last_input_was_letter = 0;
+
+	filter_hints(scr, num_buf, text_buf);
 
 	int rc = 0;
-	char buf[32] = {0};
 
 	platform->input_grab_keyboard();
 	platform->mouse_hide();
 
-	/* Whitelist allowed keys during selection */
 	const char *keys[] = {
 		"smart_hint_exit",
+		"smart_hint_select",
 		"hint_undo_all",
 		"hint_undo",
 	};
 	config_input_whitelist(keys, sizeof keys / sizeof keys[0]);
 
-	/* Main selection loop */
+	size_t prev_matched = nr_matched;
+
 	while (1) {
 		struct input_event *ev = platform->input_next_event(0);
 
 		if (!ev->pressed)
 			continue;
 
-		size_t len = strlen(buf);
-
 		if (config_input_match(ev, "smart_hint_exit")) {
 			rc = -1;
 			break;
+		} else if (config_input_match(ev, "smart_hint_select")) {
+			if (is_numeric_mode && nr_matched > 0 && highlighted_index < (int)nr_matched) {
+				struct hint *h = &matched[highlighted_index];
+				platform->screen_clear(scr);
+
+				int nx = h->x + h->w / 2;
+				int ny = h->y + h->h / 2;
+
+				platform->mouse_move(scr, nx + 1, ny + 1);
+				platform->mouse_move(scr, nx, ny);
+
+				snprintf(s_last_selected_hint, sizeof(s_last_selected_hint), "%d", h->original_index + 1);
+				break;
+			}
 		} else if (config_input_match(ev, "hint_undo_all")) {
-			buf[0] = 0;
+			num_buf[0] = 0;
+			text_buf[0] = 0;
 		} else if (config_input_match(ev, "hint_undo")) {
-			if (len > 0)
-				buf[len - 1] = 0;
+			size_t text_len = strlen(text_buf);
+			size_t num_len = strlen(num_buf);
+
+			if (text_len > 0) {
+				text_buf[text_len - 1] = 0;
+			} else if (num_len > 0) {
+				num_buf[num_len - 1] = 0;
+			}
 		} else {
 			const char *name = input_event_tostr(ev);
 
-			/* Only accept single character input */
 			if (!name || name[1])
 				continue;
 
-			if (len < sizeof(buf) - 1)
-				buf[len++] = name[0];
+			char c = name[0];
+
+			// Save current buffer state in case we need to rollback
+			char num_buf_backup[32];
+			char text_buf_backup[64];
+			strncpy(num_buf_backup, num_buf, sizeof(num_buf_backup));
+			strncpy(text_buf_backup, text_buf, sizeof(text_buf_backup));
+
+			if (is_numeric_mode) {
+				if (c >= '0' && c <= '9') {
+					size_t num_len = strlen(num_buf);
+					if (num_len < sizeof(num_buf) - 1) {
+						num_buf[num_len] = c;
+						num_buf[num_len + 1] = '\0';
+					} else {
+						continue;
+					}
+					last_input_was_letter = 0;
+				} else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+					size_t text_len = strlen(text_buf);
+					if (text_len < sizeof(text_buf) - 1) {
+						text_buf[text_len] = c;
+						text_buf[text_len + 1] = '\0';
+					} else {
+						continue;
+					}
+					last_input_was_letter = 1;
+				} else {
+					continue;
+				}
+			} else {
+				size_t num_len = strlen(num_buf);
+				if (num_len < sizeof(num_buf) - 1) {
+					num_buf[num_len] = c;
+					num_buf[num_len + 1] = '\0';
+				} else {
+					continue;
+				}
+			}
+
+			// Test the filter with new input
+			size_t before_filter = nr_matched;
+			filter_hints(scr, num_buf, text_buf);
+
+			// If filter results in 0 matches, rollback and ignore this input
+			if (nr_matched == 0 && before_filter > 0) {
+				strncpy(num_buf, num_buf_backup, sizeof(num_buf));
+				strncpy(text_buf, text_buf_backup, sizeof(text_buf));
+				// Restore previous matched state
+				filter_hints(scr, num_buf, text_buf);
+				continue;
+			}
+
+			// If we got a single match and auto-select is enabled
+			if (nr_matched == 1 && (!is_numeric_mode || !last_input_was_letter)) {
+				struct hint *h = &matched[0];
+
+				platform->screen_clear(scr);
+
+				int nx = h->x + h->w / 2;
+				int ny = h->y + h->h / 2;
+
+				platform->mouse_move(scr, nx + 1, ny + 1);
+				platform->mouse_move(scr, nx, ny);
+
+				if (is_numeric_mode) {
+					snprintf(s_last_selected_hint, sizeof(s_last_selected_hint), "%d", h->original_index + 1);
+				} else {
+					strncpy(s_last_selected_hint, num_buf, sizeof(s_last_selected_hint) - 1);
+				}
+				break;
+			}
+
+			prev_matched = nr_matched;
+			continue;
 		}
 
-		filter_hints(scr, buf);
+		// For undo operations, filter normally
+		size_t before_filter = nr_matched;
+		filter_hints(scr, num_buf, text_buf);
 
-		/* Single match - move mouse and exit */
-		if (nr_matched == 1) {
+		if (nr_matched == 1 && (!is_numeric_mode || !last_input_was_letter)) {
 			struct hint *h = &matched[0];
 
 			platform->screen_clear(scr);
@@ -244,16 +527,18 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 			int nx = h->x + h->w / 2;
 			int ny = h->y + h->h / 2;
 
-			/* Wiggle to accommodate text selection widgets */
 			platform->mouse_move(scr, nx + 1, ny + 1);
 			platform->mouse_move(scr, nx, ny);
 
-			strncpy(s_last_selected_hint, buf, sizeof(s_last_selected_hint) - 1);
-			break;
-		} else if (nr_matched == 0) {
-			/* No matches - reset or exit */
+			if (is_numeric_mode) {
+				snprintf(s_last_selected_hint, sizeof(s_last_selected_hint), "%d", h->original_index + 1);
+			} else {
+				strncpy(s_last_selected_hint, num_buf, sizeof(s_last_selected_hint) - 1);
+			}
 			break;
 		}
+
+		prev_matched = nr_matched;
 	}
 
 	platform->input_ungrab_keyboard();
@@ -424,6 +709,10 @@ int smart_hint_mode(void)
 	int rc = hint_selection(scr, hint_array, hint_count);
 
 	/* Cleanup */
+	for (size_t i = 0; i < hint_count; i++) {
+		if (hint_array[i].element_name)
+			free(hint_array[i].element_name);
+	}
 	free(hint_array);
 
 	return rc;
