@@ -24,7 +24,7 @@ CXXFLAGS+=-I/mingw64/include/opencv4
 LDFLAGS+=-lopencv_imgproc -lopencv_core
 OPENCV_FILES=src/common/opencv_detector.cpp
 
-CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c src/common/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c')
+CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c src/common/*.c src/smart_hint/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c')
 CXXFILES=$(shell find src/platform/windows/*.cpp) $(OPENCV_FILES)
 OBJFILES=$(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
 
