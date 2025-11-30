@@ -40,6 +40,8 @@ struct detection_context {
 static size_t nr_matched = 0;
 static int highlighted_index = 0;
 static screen_t g_current_screen;  /* For center-based sorting */
+static int is_opencv_result = 0;  /* Flag to indicate if results are from OpenCV (no text filtering) */
+static int labels_were_regenerated = 0;  /* Flag to track if labels were regenerated (affects filtering source) */
 
 char s_last_selected_hint[32] = {0};
 
@@ -144,61 +146,72 @@ static int compare_distance_from_center(const void *a, const void *b)
 
 /**
  * Filter hints based on numeric and text filters
+ * Returns 1 if labels were regenerated (num_buf should be reset), 0 otherwise
  */
-static void filter_hints(screen_t scr, const char *num_filter, const char *text_filter)
+static int filter_hints(screen_t scr, const char *num_filter, const char *text_filter)
 {
 	const char *mode = config_get("smart_hint_mode");
 	int is_numeric_mode = strcmp(mode, "numeric") == 0;
-
-	nr_matched = 0;
 
 	if (is_numeric_mode && (num_filter[0] || text_filter[0])) {
 		fprintf(stderr, "DEBUG: Filtering - num='%s' text='%s'\n", num_filter, text_filter);
 	}
 
-	for (size_t i = 0; i < nr_hints; i++) {
+	/* Determine source array for filtering */
+	/* If labels were regenerated, filter from matched[] (which has new labels) */
+	/* Otherwise, filter from original hints[] */
+	struct hint *source = labels_were_regenerated ? matched : hints;
+	size_t source_count = labels_were_regenerated ? nr_matched : nr_hints;
+
+	/* Temporary array to store new matches */
+	struct hint temp_matched[MAX_HINTS];
+	size_t temp_count = 0;
+
+	for (size_t i = 0; i < source_count; i++) {
 		int matches = 1;
 
 		if (is_numeric_mode) {
 			if (num_filter && num_filter[0]) {
-				if (strncmp(hints[i].label, num_filter, strlen(num_filter)) != 0) {
+				if (strncmp(source[i].label, num_filter, strlen(num_filter)) != 0) {
 					matches = 0;
 				}
 			}
 
 			if (matches && text_filter && text_filter[0]) {
-				int fuzzy_result = hints[i].element_name ? fuzzy_match(hints[i].element_name, text_filter) : 0;
+				int fuzzy_result = source[i].element_name ? fuzzy_match(source[i].element_name, text_filter) : 0;
 				if (!fuzzy_result) {
 					matches = 0;
-				}
-				if (text_filter[0]) {
-					fprintf(stderr, "DEBUG: Hint %zu label='%s' name='%s' fuzzy_match=%d matches=%d\n",
-						i, hints[i].label,
-						hints[i].element_name ? hints[i].element_name : "(null)",
-						fuzzy_result, matches);
 				}
 			}
 		} else {
 			if (num_filter && num_filter[0]) {
-				if (strncasecmp(hints[i].label, num_filter, strlen(num_filter)) != 0) {
+				if (strncasecmp(source[i].label, num_filter, strlen(num_filter)) != 0) {
 					matches = 0;
 				}
 			}
 		}
 
 		if (matches) {
-			matched[nr_matched] = hints[i];
-			matched[nr_matched].highlighted = 0;
-			nr_matched++;
+			temp_matched[temp_count] = source[i];
+			temp_matched[temp_count].highlighted = 0;
+			temp_count++;
 		}
+	}
+
+	/* Copy temp results to matched */
+	nr_matched = temp_count;
+	for (size_t i = 0; i < temp_count; i++) {
+		matched[i] = temp_matched[i];
 	}
 
 	if (is_numeric_mode && (num_filter[0] || text_filter[0])) {
 		fprintf(stderr, "DEBUG: Matched %zu hints\n", nr_matched);
 	}
 
-	/* In numeric mode with filtering active, sort by distance from center and reassign labels */
-	if (is_numeric_mode && nr_matched > 0 && (num_filter[0] || text_filter[0])) {
+	/* In numeric mode with TEXT filtering active, sort by distance from center and reassign labels */
+	/* Do NOT reassign labels when using numeric filtering - user wants to keep original numbers */
+	int regenerated = 0;
+	if (is_numeric_mode && nr_matched > 0 && text_filter[0] && !num_filter[0]) {
 		/* Sort matched hints by distance from screen center */
 		qsort(matched, nr_matched, sizeof(struct hint), compare_distance_from_center);
 
@@ -215,6 +228,8 @@ static void filter_hints(screen_t scr, const char *num_filter, const char *text_
 		}
 
 		fprintf(stderr, "DEBUG: Reassigned labels based on distance from center\n");
+		labels_were_regenerated = 1;
+		regenerated = 1;
 	}
 
 	if (nr_matched > 0) {
@@ -227,6 +242,9 @@ static void filter_hints(screen_t scr, const char *num_filter, const char *text_
 	platform->screen_clear(scr);
 	platform->hint_draw(scr, matched, nr_matched);
 	platform->commit();
+
+	/* Return 1 if labels were regenerated (caller should reset num_buf) */
+	return regenerated;
 }
 
 /**
@@ -319,6 +337,16 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 	const char *mode = config_get("smart_hint_mode");
 	int is_numeric_mode = strcmp(mode, "numeric") == 0;
 
+	// Check if this is an OpenCV result (all elements have no names)
+	int all_no_names = 1;
+	for (size_t i = 0; i < result->count; i++) {
+		if (result->elements[i].name != NULL) {
+			all_no_names = 0;
+			break;
+		}
+	}
+	is_opencv_result = all_no_names;
+
 	for (size_t i = 0; i < result->count; i++) {
 		struct ui_element *element = &result->elements[i];
 
@@ -340,7 +368,8 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 
 	if (is_numeric_mode) {
 		generate_numeric_labels(hints, result->count);
-		fprintf(stderr, "DEBUG: Created %zu hints in numeric mode:\n", result->count);
+		fprintf(stderr, "DEBUG: Created %zu hints in numeric mode%s:\n",
+			result->count, is_opencv_result ? " (OpenCV - text filtering disabled)" : "");
 		for (size_t i = 0; i < result->count && i < 10; i++) {
 			fprintf(stderr, "  Hint %zu: label='%s' name='%s' pos=(%d,%d)\n",
 				i, hints[i].label,
@@ -367,6 +396,7 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 	hints = _hints;
 	nr_hints = _nr_hints;
 	g_current_screen = scr;  /* Store for center-based sorting */
+	labels_were_regenerated = 0;  /* Reset flag at start */
 
 	if (nr_hints == 0) {
 		fprintf(stderr, "No hints available\n");
@@ -457,6 +487,10 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 					}
 					last_input_was_letter = 0;
 				} else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+					// Ignore letter input for OpenCV results 
+					if (is_opencv_result) {
+						continue;
+					}
 					size_t text_len = strlen(text_buf);
 					if (text_len < sizeof(text_buf) - 1) {
 						text_buf[text_len] = c;
@@ -480,7 +514,13 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 
 			// Test the filter with new input
 			size_t before_filter = nr_matched;
-			filter_hints(scr, num_buf, text_buf);
+			int labels_regenerated = filter_hints(scr, num_buf, text_buf);
+
+			// If labels were regenerated, reset num_buf so user can type new labels
+			if (labels_regenerated) {
+				num_buf[0] = '\0';
+				fprintf(stderr, "DEBUG: Labels regenerated, cleared num_buf\n");
+			}
 
 			// If filter results in 0 matches, rollback and ignore this input
 			if (nr_matched == 0 && before_filter > 0) {

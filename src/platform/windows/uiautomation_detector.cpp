@@ -296,8 +296,9 @@ static bool check_is_actually_visible(IUIAutomationElement* element, HWND window
     LONG visibleArea = overlapWidth * overlapHeight;
     LONG totalArea = width * height;
 
-    // Require at least 50% of element to be visible, or minimum 100 pixels
-    return (visibleArea >= (totalArea / 2) || (visibleArea >= 100);
+    return true;
+    // // Require at least 50% of element to be visible, or minimum 100 pixels
+    // return (visibleArea >= totalArea / 2) || (visibleArea >= 100);
 }
 
 /**
