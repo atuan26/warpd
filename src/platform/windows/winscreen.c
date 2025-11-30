@@ -42,11 +42,6 @@ static void draw_hints(struct screen *scr)
 	HBRUSH bgbrush = CreateSolidBrush(hint_bgcol);
 
 	SetBkColor(scr->dc, hint_bgcol);
-	SetTextColor(scr->dc, hint_fgcol);
-
-
-	//TODO: font should fill the box.
-
 	for (i = 0; i < scr->nhints; i++) {
 		RECT rect;
 		wchar_t label[64];
@@ -57,10 +52,15 @@ static void draw_hints(struct screen *scr)
 		rect.right = h->x+h->w;
 		rect.bottom = h->y+h->h;
 
-		FillRect(scr->dc, &rect, bgbrush);
-		//FIXME
-		//mbstowcs (label, h->label, sizeof label / sizeof label[0] - 1);
-		//label[sizeof label / sizeof label[0] - 1] = 0;
+		if (h->highlighted) {
+			HBRUSH highlight_bgbrush = CreateSolidBrush(RGB(255, 153, 0));
+			FillRect(scr->dc, &rect, highlight_bgbrush);
+			DeleteObject(highlight_bgbrush);
+			SetTextColor(scr->dc, RGB(0, 0, 0));
+		} else {
+			FillRect(scr->dc, &rect, bgbrush);
+			SetTextColor(scr->dc, hint_fgcol);
+		}
 
 		DrawText(scr->dc, h->label, -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 	}

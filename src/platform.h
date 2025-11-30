@@ -38,6 +38,9 @@ struct hint {
 	int h;
 
 	char label[16];
+	char *element_name;
+	int original_index;
+	int highlighted;
 };
 
 /* UI element detected by accessibility APIs or computer vision */

@@ -14,11 +14,23 @@ static void draw_hook(void *arg, NSView *view)
 
 	for (i = 0; i < scr->nr_hints; i++) {
 		struct hint *h = &scr->hints[i];
-		macos_draw_box(scr, bgColor,
-				h->x, h->y, h->w, h->h, border_radius);
 
-		macos_draw_text(scr, fgColor, font,
-				h->x, h->y, h->w, h->h, h->label);
+		if (h->highlighted) {
+			NSColor *highlightBg = [NSColor colorWithRed:1.0 green:0.6 blue:0.0 alpha:1.0];
+			NSColor *highlightFg = [NSColor colorWithRed:0.0 green:0.0 blue:0.0 alpha:1.0];
+
+			macos_draw_box(scr, highlightBg,
+					h->x, h->y, h->w, h->h, border_radius);
+
+			macos_draw_text(scr, highlightFg, font,
+					h->x, h->y, h->w, h->h, h->label);
+		} else {
+			macos_draw_box(scr, bgColor,
+					h->x, h->y, h->w, h->h, border_radius);
+
+			macos_draw_text(scr, fgColor, font,
+					h->x, h->y, h->w, h->h, h->label);
+		}
 	}
 }
 

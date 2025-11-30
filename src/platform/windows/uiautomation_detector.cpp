@@ -173,6 +173,12 @@ static bool is_interactive_element(IUIAutomationElement* element)
             return false;
     }
 
+    // Check if element is enabled FIRST (required for all interactive elements)
+    BOOL isEnabled = FALSE;
+    hr = element->get_CurrentIsEnabled(&isEnabled);
+    if (FAILED(hr) || !isEnabled)
+        return false;
+
     // Check for obviously interactive control types first (fastest path)
     switch (controlType) {
         case UIA_ButtonControlTypeId:
@@ -200,12 +206,6 @@ static bool is_interactive_element(IUIAutomationElement* element)
             // Unknown types, skip them
             return false;
     }
-
-    // Check if element is enabled (required for interactivity)
-    BOOL isEnabled = FALSE;
-    hr = element->get_CurrentIsEnabled(&isEnabled);
-    if (FAILED(hr) || !isEnabled)
-        return false;
 
     // For text and images, check if they have interaction patterns
     // Check for invoke pattern first (most common)
@@ -245,18 +245,32 @@ static bool get_element_rect(IUIAutomationElement* element, RECT* rect)
  */
 static bool check_is_actually_visible(IUIAutomationElement* element, HWND window)
 {
+    // First check the IsOffscreen property (fast check)
+    BOOL isOffscreen = TRUE;
+    HRESULT hr = element->get_CurrentIsOffscreen(&isOffscreen);
+    if (SUCCEEDED(hr) && isOffscreen) {
+        return false;  // Element is explicitly marked as offscreen
+    }
+
     RECT elemRect, winRect;
-    
+
     // Get element rectangle
     if (!get_element_rect(element, &elemRect)) {
         return false;
     }
-    
+
+    // Check if element has a valid size (not zero or negative)
+    LONG width = elemRect.right - elemRect.left;
+    LONG height = elemRect.bottom - elemRect.top;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
     // Get window rectangle
     if (!GetWindowRect(window, &winRect)) {
         return true; // If we can't get window bounds, assume visible
     }
-    
+
     // Check if element is completely outside window bounds
     if (elemRect.left >= winRect.right ||   // Element starts after window ends
         elemRect.top >= winRect.bottom ||   // Element starts below window
@@ -264,30 +278,31 @@ static bool check_is_actually_visible(IUIAutomationElement* element, HWND window
         elemRect.bottom <= winRect.top) {   // Element ends above window
         return false;
     }
-    
+
     // Check if element has reasonable overlap with window
     LONG overlapLeft = std::max(elemRect.left, winRect.left);
     LONG overlapTop = std::max(elemRect.top, winRect.top);
     LONG overlapRight = std::min(elemRect.right, winRect.right);
     LONG overlapBottom = std::min(elemRect.bottom, winRect.bottom);
-    
+
     LONG overlapWidth = overlapRight - overlapLeft;
     LONG overlapHeight = overlapBottom - overlapTop;
-    
+
     if (overlapWidth <= 0 || overlapHeight <= 0) {
         return false;
     }
-    
+
     // Calculate visible area
     LONG visibleArea = overlapWidth * overlapHeight;
-    LONG totalArea = (elemRect.right - elemRect.left) * (elemRect.bottom - elemRect.top);
-    
-    // Require at least 50% of element to be visible, or minimum 100 pixels
-    return (visibleArea >= totalArea / 2) || (visibleArea >= 100);
+    LONG totalArea = width * height;
+
+    return true;
+    // // Require at least 50% of element to be visible, or minimum 100 pixels
+    // return (visibleArea >= totalArea / 2) || (visibleArea >= 100);
 }
 
 /**
- * Get element name
+ * Get element name 
  */
 static std::string get_element_name(IUIAutomationElement* element)
 {
@@ -295,12 +310,39 @@ static std::string get_element_name(IUIAutomationElement* element)
         return "";
 
     BSTR name = nullptr;
-    HRESULT hr = element->get_CurrentName(&name);
-    if (FAILED(hr) || !name)
-        return "";
+    BSTR helpText = nullptr;
+    BSTR automationId = nullptr;
+    BSTR ariaRole = nullptr;
+    HRESULT hr;
+    std::string result;
 
-    std::string result = bstr_to_utf8(name);
-    SysFreeString(name);
+    hr = element->get_CurrentName(&name);
+    std::string nameStr = (SUCCEEDED(hr) && name && SysStringLen(name) > 0) ? bstr_to_utf8(name) : "";
+    
+    hr = element->get_CurrentHelpText(&helpText);
+    std::string helpStr = (SUCCEEDED(hr) && helpText && SysStringLen(helpText) > 0) ? bstr_to_utf8(helpText) : "";
+    
+    hr = element->get_CurrentAutomationId(&automationId);
+    std::string idStr = (SUCCEEDED(hr) && automationId && SysStringLen(automationId) > 0) ? bstr_to_utf8(automationId) : "";
+    
+    hr = element->get_CurrentAriaRole(&ariaRole);
+    std::string ariaStr = (SUCCEEDED(hr) && ariaRole && SysStringLen(ariaRole) > 0) ? bstr_to_utf8(ariaRole) : "";
+
+    if (!nameStr.empty()) {
+        result = nameStr;
+    } else if (!helpStr.empty()) {
+        result = helpStr;
+    } else if (!idStr.empty()) {
+        result = idStr;
+    } else if (!ariaStr.empty()) {
+        result = ariaStr;
+    }
+
+    if (name) SysFreeString(name);
+    if (helpText) SysFreeString(helpText);
+    if (automationId) SysFreeString(automationId);
+    if (ariaRole) SysFreeString(ariaRole);
+
     return result;
 }
 
@@ -344,6 +386,99 @@ static DWORD g_last_progress_time = 0;
 static DWORD g_traversal_start_time = 0;
 static int g_max_traversal_time_ms = 5000;  // 5 second timeout
 static bool g_timeout_triggered = false;  // Flag to stop all recursion
+
+/**
+ * Dump UI tree to file for debugging
+ */
+static void dump_element_tree(FILE* fp, IUIAutomationElement* element, int depth, int max_depth, HWND window)
+{
+    if (!element || depth > max_depth)
+        return;
+
+    std::string indent(depth * 2, ' ');
+
+    std::string name = get_element_name(element);
+    std::string type = get_element_type(element);
+
+    BSTR desc = nullptr;
+    std::string descStr;
+    if (SUCCEEDED(element->get_CurrentHelpText(&desc)) && desc) {
+        descStr = bstr_to_utf8(desc);
+        SysFreeString(desc);
+    }
+
+    BSTR automationId = nullptr;
+    std::string idStr;
+    if (SUCCEEDED(element->get_CurrentAutomationId(&automationId)) && automationId) {
+        idStr = bstr_to_utf8(automationId);
+        SysFreeString(automationId);
+    }
+
+    RECT rect = {0};
+    element->get_CurrentBoundingRectangle(&rect);
+    int x = rect.left;
+    int y = rect.top;
+    int w = rect.right - rect.left;
+    int h = rect.bottom - rect.top;
+
+    BOOL enabled = FALSE;
+    element->get_CurrentIsEnabled(&enabled);
+
+    BOOL isOffscreen = FALSE;
+    element->get_CurrentIsOffscreen(&isOffscreen);
+
+    // Check if element would be considered interactive
+    bool isInteractive = is_interactive_element(element);
+
+    // Check if element is visible within window
+    bool isVisibleInWindow = false;
+    if (window) {
+        isVisibleInWindow = check_is_actually_visible(element, window);
+    }
+
+    // Determine validation status
+    std::string status = "";
+    if (!enabled) {
+        status += " [DISABLED]";
+    }
+    if (isOffscreen) {
+        status += " [OFFSCREEN]";
+    }
+    if (w <= 0 || h <= 0) {
+        status += " [INVALID_SIZE]";
+    }
+    if (window && !isVisibleInWindow && w > 0 && h > 0) {
+        status += " [NOT_VISIBLE]";
+    }
+    if (isInteractive && enabled && !isOffscreen && w > 0 && h > 0) {
+        if (!window || isVisibleInWindow) {
+            status += " ✓ [VALID_HINT]";
+        }
+    }
+
+    fprintf(fp, "%s[%s] name='%s' x=%d y=%d w=%d h=%d enabled=%d offscreen=%d interactive=%d%s",
+        indent.c_str(), type.c_str(), name.c_str(), x, y, w, h,
+        enabled ? 1 : 0, isOffscreen ? 1 : 0, isInteractive ? 1 : 0, status.c_str());
+
+    if (!descStr.empty())
+        fprintf(fp, " desc='%s'", descStr.c_str());
+    if (!idStr.empty())
+        fprintf(fp, " id='%s'", idStr.c_str());
+
+    fprintf(fp, "\n");
+
+    IUIAutomationElement* child = nullptr;
+    if (SUCCEEDED(g_pTreeWalker->GetFirstChildElement(element, &child)) && child) {
+        dump_element_tree(fp, child, depth + 1, max_depth, window);
+        child->Release();
+    }
+
+    IUIAutomationElement* sibling = nullptr;
+    if (SUCCEEDED(g_pTreeWalker->GetNextSiblingElement(element, &sibling)) && sibling) {
+        dump_element_tree(fp, sibling, depth, max_depth, window);
+        sibling->Release();
+    }
+}
 
 /**
  * Collect interactive elements using breadth-first search for better early stopping
@@ -399,62 +534,81 @@ static void collect_elements_bfs(IUIAutomationElement* rootElement, std::vector<
         
         // Early stop if we have enough elements
         if (elements.size() >= (size_t)target_elements) {
-            log_with_time("UI Automation: Found %zu elements (target: %d), stopping early\n", 
+            log_with_time("UI Automation: Found %zu elements (target: %d), stopping early\n",
                          elements.size(), target_elements);
             element->Release();
             break;
         }
-        
-        // Check if current element is interactive
-        if (is_interactive_element(element)) {
+
+        // Check basic element validity before processing it or its children
+        bool shouldProcessChildren = false;
+
+        // First check if element is enabled and visible (quick filters)
+        BOOL isEnabled = FALSE;
+        HRESULT hr = element->get_CurrentIsEnabled(&isEnabled);
+        if (SUCCEEDED(hr) && isEnabled) {
+            // Check if element is offscreen
+            BOOL isOffscreen = TRUE;
+            hr = element->get_CurrentIsOffscreen(&isOffscreen);
+            bool isVisible = (SUCCEEDED(hr) && !isOffscreen);
+
+            // Check size constraints
             RECT rect;
             if (get_element_rect(element, &rect)) {
                 int width = rect.right - rect.left;
                 int height = rect.bottom - rect.top;
-                
-                if (width >= min_width && height >= min_height && (width * height) >= min_area) {
-                    if (!window || check_is_actually_visible(element, window)) {
-                        struct ui_element elem = {0};
-                        elem.x = rect.left;
-                        elem.y = rect.top;
-                        elem.w = width;
-                        elem.h = height;
-                        
-                        std::string name = get_element_name(element);
-                        std::string type = get_element_type(element);
-                        
-                        if (!name.empty()) {
-                            elem.name = (char*)malloc(name.length() + 1);
-                            strcpy(elem.name, name.c_str());
-                        } else {
-                            elem.name = nullptr;
-                        }
-                        elem.role = (char*)malloc(type.length() + 1);
-                        strcpy(elem.role, type.c_str());
-                        
-                        elements.push_back(elem);
-                        
-                        if (elements.size() >= MAX_UI_ELEMENTS) {
-                            element->Release();
-                            break;
+
+                // Element has valid size and basic visibility - worth processing children
+                if (width > 0 && height > 0) {
+                    shouldProcessChildren = true;
+
+                    // Now check if it's actually an interactive element worth adding
+                    if (is_interactive_element(element)) {
+                        if (width >= min_width && height >= min_height && (width * height) >= min_area) {
+                            if (!window || check_is_actually_visible(element, window)) {
+                                struct ui_element elem = {0};
+                                elem.x = rect.left;
+                                elem.y = rect.top;
+                                elem.w = width;
+                                elem.h = height;
+
+                                std::string name = get_element_name(element);
+                                std::string type = get_element_type(element);
+
+                                if (!name.empty()) {
+                                    elem.name = (char*)malloc(name.length() + 1);
+                                    strcpy(elem.name, name.c_str());
+                                } else {
+                                    elem.name = nullptr;
+                                }
+                                elem.role = (char*)malloc(type.length() + 1);
+                                strcpy(elem.role, type.c_str());
+
+                                elements.push_back(elem);
+
+                                if (elements.size() >= MAX_UI_ELEMENTS) {
+                                    element->Release();
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        
-        // Add children to queue if not at max depth
-        if (depth < max_depth) {
+
+        // Add children to queue ONLY if element passed basic validity checks
+        if (shouldProcessChildren && depth < max_depth) {
             IUIAutomationElement* child = nullptr;
-            HRESULT hr = g_pTreeWalker->GetFirstChildElement(element, &child);
-            
+            hr = g_pTreeWalker->GetFirstChildElement(element, &child);
+
             while (SUCCEEDED(hr) && child) {
                 queue.push_back({child, depth + 1});
-                
+
                 if (depth + 1 > max_depth_reached) {
                     max_depth_reached = depth + 1;
                 }
-                
+
                 IUIAutomationElement* nextChild = nullptr;
                 hr = g_pTreeWalker->GetNextSiblingElement(child, &nextChild);
                 child = nextChild;
@@ -657,6 +811,23 @@ struct ui_detection_result *uiautomation_detect_ui_elements(void)
         DWORD startTime = GetTickCount();
         g_traversal_start_time = startTime;
         g_last_progress_time = startTime;
+        
+        // // Dump UI tree to file for debugging
+        // FILE* dump_fp = fopen("ui_tree_dump_windows.txt", "w");
+        // if (dump_fp) {
+        //     fprintf(dump_fp, "Windows UI Automation Tree Dump\n");
+        //     fprintf(dump_fp, "================================\n");
+        //     fprintf(dump_fp, "Legend:\n");
+        //     fprintf(dump_fp, "  ✓ [VALID_HINT]   - Element will receive a hint (interactive, enabled, visible)\n");
+        //     fprintf(dump_fp, "  [DISABLED]       - Element is disabled (not interactive)\n");
+        //     fprintf(dump_fp, "  [OFFSCREEN]      - Element is marked as offscreen by UI Automation\n");
+        //     fprintf(dump_fp, "  [INVALID_SIZE]   - Element has zero or negative dimensions\n");
+        //     fprintf(dump_fp, "  [NOT_VISIBLE]    - Element is clipped/outside window bounds\n");
+        //     fprintf(dump_fp, "\n");
+        //     dump_element_tree(dump_fp, rootElement, 0, max_depth, hwnd);
+        //     fclose(dump_fp);
+        //     log_with_time("UI Automation: Tree dumped to ui_tree_dump_windows.txt\n");
+        // }
         
         // Use breadth-first search for better performance (finds visible elements faster)
         collect_elements_bfs(rootElement, elements, max_depth, hwnd, min_width, min_height, min_area);

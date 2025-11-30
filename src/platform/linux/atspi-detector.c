@@ -169,20 +169,85 @@ void print_info(ElementInfo *element)
 	g_free(padding);
 }
 
+static FILE *g_dump_fp = NULL;
+
+static void dump_element_tree(AtspiAccessible *node, gint depth, gint max_depth)
+{
+	if (!node || !g_dump_fp || depth > max_depth)
+		return;
+	
+	for (gint i = 0; i < depth * 2; i++)
+		fprintf(g_dump_fp, " ");
+	
+	gchar *name = atspi_accessible_get_name(node, NULL);
+	gchar *role = atspi_accessible_get_role_name(node, NULL);
+	gchar *desc = atspi_accessible_get_description(node, NULL);
+	
+	AtspiComponent *component = atspi_accessible_get_component(node);
+	gint x = 0, y = 0, w = 0, h = 0;
+	if (component) {
+		AtspiRect *rect = atspi_component_get_extents(component, ATSPI_COORD_TYPE_SCREEN, NULL);
+		if (rect) {
+			x = rect->x;
+			y = rect->y;
+			w = rect->width;
+			h = rect->height;
+			g_free(rect);
+		}
+		g_object_unref(component);
+	}
+	
+	fprintf(g_dump_fp, "[%s] name='%s' x=%d y=%d w=%d h=%d",
+		role ? role : "unknown",
+		name ? name : "",
+		x, y, w, h);
+	
+	if (desc && desc[0])
+		fprintf(g_dump_fp, " desc='%s'", desc);
+	
+	fprintf(g_dump_fp, "\n");
+	
+	if (name) g_free(name);
+	if (role) g_free(role);
+	if (desc) g_free(desc);
+	
+	gint child_count = atspi_accessible_get_child_count(node, NULL);
+	for (gint i = 0; i < child_count; i++) {
+		AtspiAccessible *child = atspi_accessible_get_child_at_index(node, i, NULL);
+		if (child) {
+			dump_element_tree(child, depth + 1, max_depth);
+			g_object_unref(child);
+		}
+	}
+}
+
 static void collect_element_info(AtspiAccessible *accessible, gint depth,
 				 gint x, gint y, gint w, gint h)
 {
 	gchar *raw_name = atspi_accessible_get_name(accessible, NULL);
+	gchar *label = get_label(accessible);
+	gchar *description = atspi_accessible_get_description(accessible, NULL);
+	
+	static int debug_count = 0;
+	if (debug_count < 5) {
+		fprintf(stderr, "DEBUG RAW [Linux AT-SPI]: Name='%s' Label='%s' Description='%s'\n",
+			raw_name ? raw_name : "(null)",
+			label ? label : "(null)",
+			description ? description : "(null)");
+		debug_count++;
+	}
+	
 	gchar *name = NULL;
 	if (raw_name == NULL || g_strcmp0(raw_name, "") == 0) {
-		raw_name = get_label(accessible);
-		name = raw_name ? g_strdup(raw_name) : g_strdup("NULL");
+		name = label ? g_strdup(label) : g_strdup("NULL");
 	} else {
 		name = g_strdup(raw_name);
 	}
 
 	gchar *raw_role = atspi_accessible_get_role_name(accessible, NULL);
 	gchar *role_name = raw_role ? g_strdup(raw_role) : g_strdup("");
+	
+	if (description) g_free(description);
 
 	if (validate_role(role_name) && x > 0 && y > 0) {
 		ElementInfo *element = g_new0(ElementInfo, 1);
