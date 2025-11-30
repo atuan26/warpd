@@ -1,4 +1,4 @@
-CFILES=$(shell find src/platform/linux/*.c src/*.c src/common/*.c)
+CFILES=$(shell find src/platform/linux/*.c src/*.c src/common/*.c src/smart_hint/*.c)
 CXXFILES=
 
 # OpenCV support for smart hint fallback - always enabled
