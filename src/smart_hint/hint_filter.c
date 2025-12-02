@@ -107,6 +107,11 @@ int hint_filter_apply(hint_state_t *state)
 		        state->is_opencv_result ? " (OpenCV - text filter ignored)" : "");
 	}
 
+	/* Save previous filter state for potential rollback */
+	static char prev_num_filter[HINT_MAX_NUM_FILTER] = {0};
+	static char prev_text_filter[HINT_MAX_TEXT_FILTER] = {0};
+	static int prev_labels_regenerated = 0;
+
 	/* Determine source array for filtering */
 	/* If labels were regenerated, filter from matched[] (which has new labels) */
 	/* Otherwise, filter from original hints[] */
@@ -126,6 +131,20 @@ int hint_filter_apply(hint_state_t *state)
 			temp_count++;
 		}
 	}
+
+	/* If filtering results in 0 matches and we had matches before, revert to previous filter state */
+	if (temp_count == 0 && state->nr_matched > 0) {
+		fprintf(stderr, "DEBUG: Filter would result in 0 matches, reverting to previous filter\n");
+		strncpy(state->num_filter, prev_num_filter, HINT_MAX_NUM_FILTER);
+		strncpy(state->text_filter, prev_text_filter, HINT_MAX_TEXT_FILTER);
+		state->labels_regenerated = prev_labels_regenerated;
+		return -1; /* Indicate rejection */
+	}
+
+	/* Save current filter state for next time */
+	strncpy(prev_num_filter, state->num_filter, HINT_MAX_NUM_FILTER);
+	strncpy(prev_text_filter, state->text_filter, HINT_MAX_TEXT_FILTER);
+	prev_labels_regenerated = state->labels_regenerated;
 
 	/* Copy temp results to state->matched */
 	state->nr_matched = temp_count;

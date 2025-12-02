@@ -17,10 +17,13 @@
 /**
  * Filter and update matched hints based on current state
  *
- * Returns 1 if labels were regenerated (caller should reset num_filter), 0 otherwise
+ * Returns:
+ *  1 if labels were regenerated (caller should reset num_filter)
+ *  0 if filter applied normally
+ * -1 if filter was rejected (would result in 0 matches)
  *
  * @param state Hint state containing filters and hints
- * @return 1 if labels were regenerated, 0 otherwise
+ * @return 1 if labels regenerated, 0 if applied normally, -1 if rejected
  */
 int hint_filter_apply(hint_state_t *state);
 

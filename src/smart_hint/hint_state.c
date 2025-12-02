@@ -110,6 +110,8 @@ int hint_state_undo_filter(hint_state_t *state)
 	/* Priority: text filter first, then numeric filter */
 	if (text_len > 0) {
 		state->text_filter[text_len - 1] = '\0';
+		/* Reset label regeneration flag so we filter from original hints */
+		state->labels_regenerated = 0;
 		return 1;
 	} else if (num_len > 0) {
 		state->num_filter[num_len - 1] = '\0';
