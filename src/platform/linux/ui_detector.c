@@ -5,6 +5,7 @@
  */
 
 #include "../../platform.h"
+#include "../../common/detector_orchestrator.h"
 #include "atspi-detector.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,26 +90,59 @@ static struct ui_detection_result *atspi_detect_ui_elements(void)
 }
 
 /**
+ * Check if AT-SPI is available
+ */
+static int atspi_is_available(void)
+{
+	return 1;
+}
+
+/**
+ * Free AT-SPI result
+ */
+static void atspi_free_ui_elements(struct ui_detection_result *result)
+{
+	if (!result)
+		return;
+
+	if (result->elements) {
+		for (size_t i = 0; i < result->count; i++) {
+			if (result->elements[i].name)
+				free(result->elements[i].name);
+			if (result->elements[i].role)
+				free(result->elements[i].role);
+		}
+		free(result->elements);
+	}
+
+	free(result);
+}
+
+/**
  * Detect UI elements with AT-SPI primary, OpenCV fallback
  */
 struct ui_detection_result *linux_detect_ui_elements(void)
 {
-	/* Try AT-SPI first */
-	struct ui_detection_result *result = atspi_detect_ui_elements();
+	/* Define detection strategies in order of preference */
+	detector_strategy_t strategies[] = {
+		{
+			.name = "AT-SPI",
+			.is_available = atspi_is_available,
+			.detect = atspi_detect_ui_elements,
+			.free_result = atspi_free_ui_elements,
+			.min_elements = 0,  /* Accept any number of elements from AT-SPI */
+		},
+		{
+			.name = "OpenCV",
+			.is_available = opencv_is_available,
+			.detect = opencv_detect_ui_elements,
+			.free_result = opencv_free_ui_elements,
+			.min_elements = 0,  /* Accept any number of elements from OpenCV */
+		},
+	};
 
-	/* If AT-SPI failed and OpenCV is available, try OpenCV fallback */
-	if (result && result->error != 0 && opencv_is_available()) {
-		fprintf(stderr, "AT-SPI detection failed, trying OpenCV fallback...\n");
-		free(result);
-		result = opencv_detect_ui_elements();
-	}
-
-	/* Apply common overlap removal if detection succeeded */
-	if (result && result->error == 0) {
-		remove_overlapping_elements(result);
-	}
-
-	return result;
+	/* Run detection through strategy chain */
+	return detector_orchestrator_run(strategies, 2, "Linux");
 }
 
 /**
@@ -131,4 +165,3 @@ void linux_free_ui_elements(struct ui_detection_result *result)
 
 	free(result);
 }
-

@@ -1,10 +1,13 @@
 /*
  * warpd - A modal keyboard-driven pointing system.
  *
- * Windows UI Element Detector using UI Automation
+ * Windows UI Element Detector using UI Automation with OpenCV fallback
+ *
+ * REFACTORED: Uses common detector orchestrator to reduce duplication
  */
 
 #include "../../platform.h"
+#include "../../common/detector_orchestrator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,56 +29,26 @@ extern int opencv_is_available(void);
  */
 struct ui_detection_result *windows_detect_ui_elements(void)
 {
-    struct ui_detection_result *result = NULL;
-    
-    // Try UI Automation first
-    if (uiautomation_is_available()) {
-        result = uiautomation_detect_ui_elements();
-        
-        // Check if UI Automation found enough elements
-        if (result && result->error == 0 && result->count >= 3) {
-            fprintf(stderr, "Windows: UI Automation found %zu elements\n", result->count);
-            /* Apply common overlap removal */
-            remove_overlapping_elements(result);
-            return result;
-        }
-        
-        // UI Automation failed or found too few elements
-        if (result) {
-            fprintf(stderr, "Windows: UI Automation found only %zu elements (error: %d)\n", 
-                    result->count, result->error);
-            uiautomation_free_ui_elements(result);
-            result = NULL;
-        }
-    }
+	/* Define detection strategies in order of preference */
+	detector_strategy_t strategies[] = {
+		{
+			.name = "UI Automation",
+			.is_available = uiautomation_is_available,
+			.detect = uiautomation_detect_ui_elements,
+			.free_result = uiautomation_free_ui_elements,
+			.min_elements = 3,  /* UI Automation should find at least 3 elements */
+		},
+		{
+			.name = "OpenCV",
+			.is_available = opencv_is_available,
+			.detect = opencv_detect_ui_elements,
+			.free_result = opencv_free_ui_elements,
+			.min_elements = 0,  /* Accept any number of elements from OpenCV */
+		},
+	};
 
-    // Fallback to OpenCV if UI Automation failed
-    if (opencv_is_available()) {
-        fprintf(stderr, "Windows: Falling back to OpenCV detection\n");
-        result = opencv_detect_ui_elements();
-        
-        if (result && result->error == 0) {
-            fprintf(stderr, "Windows: OpenCV found %zu elements\n", result->count);
-            /* Apply common overlap removal */
-            remove_overlapping_elements(result);
-            return result;
-        }
-        
-        if (result) {
-            fprintf(stderr, "Windows: OpenCV detection failed (error: %d)\n", result->error);
-            opencv_free_ui_elements(result);
-            result = NULL;
-        }
-    }
-
-    // Both methods failed
-    result = calloc(1, sizeof(*result));
-    if (result) {
-        result->error = -1;
-        snprintf(result->error_msg, sizeof(result->error_msg),
-                 "Both UI Automation and OpenCV detection failed");
-    }
-    return result;
+	/* Run detection through strategy chain */
+	return detector_orchestrator_run(strategies, 2, "Windows");
 }
 
 /**
@@ -83,28 +56,18 @@ struct ui_detection_result *windows_detect_ui_elements(void)
  */
 void windows_free_ui_elements(struct ui_detection_result *result)
 {
-    if (!result)
-        return;
+	if (!result)
+		return;
 
-    // Try to determine which detector was used and free accordingly
-    // Since we don't have a way to track this, we'll use a safe approach
-    
-    // Check if this looks like an OpenCV result (no names, generic roles)
-    if (result->elements && result->count > 0) {
-        bool looks_like_opencv = true;
-        for (size_t i = 0; i < result->count; i++) {
-            if (result->elements[i].name != NULL) {
-                looks_like_opencv = false;
-                break;
-            }
-        }
-        
-        if (looks_like_opencv) {
-            opencv_free_ui_elements(result);
-            return;
-        }
-    }
+	if (result->elements) {
+		for (size_t i = 0; i < result->count; i++) {
+			if (result->elements[i].name)
+				free(result->elements[i].name);
+			if (result->elements[i].role)
+				free(result->elements[i].role);
+		}
+		free(result->elements);
+	}
 
-    // Default to UI Automation cleanup
-    uiautomation_free_ui_elements(result);
+	free(result);
 }

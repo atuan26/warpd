@@ -201,31 +201,27 @@ static int hint_selection_loop(screen_t scr, struct hint *hints, size_t nr_hints
 
 		/* Handle special case: filter character input */
 		if (cmd.type == HINT_CMD_FILTER_CHAR) {
-			/* Save state for potential rollback */
-			char num_backup[HINT_MAX_NUM_FILTER];
-			char text_backup[HINT_MAX_TEXT_FILTER];
-			strncpy(num_backup, state->num_filter, sizeof(num_backup));
-			strncpy(text_backup, state->text_filter, sizeof(text_backup));
-			size_t before_filter = state->nr_matched;
-
 			/* Apply filter character */
-			hint_state_append_filter(state, cmd.filter_char, cmd.is_letter);
+			int append_success = hint_state_append_filter(state, cmd.filter_char, cmd.is_letter);
+			if (!append_success) {
+				/* Buffer full or OpenCV text filter - ignore input */
+				continue;
+			}
 			last_input_was_letter = cmd.is_letter;
 
-			/* Filter and check for label regeneration */
-			int labels_regenerated = hint_filter_apply(state);
-			if (labels_regenerated) {
+			/* Filter and check result */
+			int filter_result = hint_filter_apply(state);
+			
+			/* If filter rejected the change (would result in 0 matches), skip rendering */
+			if (filter_result == -1) {
+				/* Filter function already reverted the state */
+				continue;
+			}
+			
+			/* If labels were regenerated, clear numeric filter */
+			if (filter_result == 1) {
 				hint_state_reset_num_filter(state);
 				fprintf(stderr, "DEBUG: Labels regenerated, cleared num_buf\n");
-			}
-
-			/* Rollback if no matches */
-			if (state->nr_matched == 0 && before_filter > 0) {
-				strncpy(state->num_filter, num_backup, sizeof(state->num_filter));
-				strncpy(state->text_filter, text_backup, sizeof(state->text_filter));
-				hint_filter_apply(state);
-				hint_renderer_draw_state(state);
-				continue;
 			}
 
 			/* Render updated hints */
