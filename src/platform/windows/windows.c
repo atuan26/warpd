@@ -267,7 +267,9 @@ static struct input_event *input_wait(struct input_event *events, size_t n)
 
 static void scroll(int direction)
 {
-	DWORD delta = -(DWORD)((float)WHEEL_DELTA/2.5);
+	const int divisor = 6;
+	
+	DWORD delta = -(DWORD)((float)WHEEL_DELTA / (float)divisor);
 	if (direction == SCROLL_UP)
 		delta *= -1;
 

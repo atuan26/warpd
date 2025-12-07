@@ -8,6 +8,8 @@
 
 #ifdef __APPLE__
 #define factor 1
+#elif defined(_WIN32)
+#define factor 20
 #else
 #define factor 50
 #endif
