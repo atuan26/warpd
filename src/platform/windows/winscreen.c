@@ -31,6 +31,8 @@ struct screen {
 
 static COLORREF hint_bgcol;
 static COLORREF hint_fgcol;
+static uint8_t hint_bg_alpha;
+static uint8_t hint_fg_alpha;
 static int hint_border_radius;
 static char hint_font_family[256];
 
@@ -296,10 +298,12 @@ AcquireMutex(mtx);
 ReleaseMutex(mtx);
 }
 
-void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, int border_radius, const char *font_family)
+void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, uint8_t bg_alpha, uint8_t fg_alpha, int border_radius, const char *font_family)
 {
 	hint_bgcol = _hint_bgcol;
 	hint_fgcol = _hint_fgcol;
+	hint_bg_alpha = bg_alpha;
+	hint_fg_alpha = fg_alpha;
 	hint_border_radius = border_radius;
 	if (font_family) {
 		strncpy(hint_font_family, font_family, sizeof(hint_font_family) - 1);

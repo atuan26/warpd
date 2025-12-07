@@ -20,7 +20,7 @@ void wn_screen_clear(struct screen *scr);
 struct screen *wn_get_screen_at(int x, int y);
 void wn_screen_get_dimensions(struct screen *scr, int *xoff, int *yoff, int *w, int *h);
 void wn_screen_set_hints(struct screen *scr, struct hint *hints, size_t nhints);
-void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, int border_radius, const char *font_family);
+void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, uint8_t bg_alpha, uint8_t fg_alpha, int border_radius, const char *font_family);
 void wn_monitor_file(const char *path);
 
 #endif

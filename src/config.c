@@ -128,8 +128,8 @@ static struct {
 	{ "ui_overlap_threshold", "10", "Minimum distance in pixels between UI elements to avoid overlap.", OPT_INT },
 	{ "ui_overlap_area_threshold", "0.7", "Maximum area overlap ratio (0.0-1.0) before removing smaller element.", OPT_STRING },
 
-	{ "hint_bgcolor", "#1c1c1e", "The background hint color.", OPT_STRING },
-	{ "hint_fgcolor", "#a1aba7", "The foreground hint color.", OPT_STRING },
+	{ "hint_bgcolor", "#1c1c1e", "The background hint color. Supports alpha channel: #RRGGBB or #RRGGBBAA (alpha fully supported on X11/Wayland, partial on Windows).", OPT_STRING },
+	{ "hint_fgcolor", "#a1aba7", "The foreground hint color. Supports alpha channel: #RRGGBB or #RRGGBBAA (alpha fully supported on X11/Wayland, partial on Windows).", OPT_STRING },
 	{ "hint_chars", "abcdefghijklmnopqrstuvwxyz", "The character set from which hints are generated. The total number of hints is the square of the size of this string. It may be desirable to increase this for larger screens or trim it to increase gaps between hints.", OPT_STRING },
 	{ "hint_font", "Arial", "The font name used by hints. Note: This is platform specific, in X it corresponds to a valid xft font name, on macos it corresponds to a postscript name.", OPT_STRING },
 

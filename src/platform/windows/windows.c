@@ -63,7 +63,7 @@ passthrough:
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-static COLORREF str_to_colorref(const char *s)
+static COLORREF str_to_colorref(const char *s, uint8_t *alpha)
 {
 
     #define HEXVAL(c) ((c >= '0' && c <= '9') ? (c-'0') :\
@@ -73,13 +73,26 @@ static COLORREF str_to_colorref(const char *s)
     if (s[0] == '#')
         s++;
 
-    if (strlen(s) == 6)
-        return HEXVAL(s[5]) << 16 |
+    size_t len = strlen(s);
+    
+    if (alpha)
+        *alpha = 255;  /* Default to fully opaque */
+    
+    if (len == 6 || len == 8) {
+        COLORREF color = HEXVAL(s[5]) << 16 |
             HEXVAL(s[4]) << 20 |
             HEXVAL(s[3]) << 8 |
             HEXVAL(s[2]) << 12 |
             HEXVAL(s[1]) << 0 |
             HEXVAL(s[0]) << 4;
+        
+        /* Parse alpha if present */
+        if (len == 8 && alpha) {
+            *alpha = (HEXVAL(s[6]) << 4) | HEXVAL(s[7]);
+        }
+        
+        return color;
+    }
 
     return 0;
 }
@@ -99,7 +112,7 @@ static void screen_clear(screen_t scr)
 
 static void screen_draw_box(screen_t scr, int x, int y, int w, int h, const char *color)
 {
-	wn_screen_add_box(scr, x, y, w, h, str_to_colorref(color));
+	wn_screen_add_box(scr, x, y, w, h, str_to_colorref(color, NULL));
 }
 
 static struct input_event *input_next_event(int timeout)
@@ -137,7 +150,10 @@ static struct input_event *input_next_event(int timeout)
 
 static void init_hint(const char *bg, const char *fg, int border_radius, const char *font_family)
 {
-	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), border_radius, font_family);
+	uint8_t bg_alpha = 255, fg_alpha = 255;
+	COLORREF bg_color = str_to_colorref(bg, &bg_alpha);
+	COLORREF fg_color = str_to_colorref(fg, &fg_alpha);
+	wn_screen_set_hintinfo(bg_color, fg_color, bg_alpha, fg_alpha, border_radius, font_family);
 }
 
 //====================================================================================
