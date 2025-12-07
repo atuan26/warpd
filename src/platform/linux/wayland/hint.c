@@ -8,6 +8,7 @@
 static char bgcolor[16];
 static char fgcolor[16];
 static const char *font_family;
+static int border_radius;
 
 static int calculate_font_size(cairo_t *cr, int w, int h)
 {
@@ -62,8 +63,21 @@ void way_hint_draw(struct screen *scr, struct hint *hints, size_t n)
 		way_hex_to_rgba(bgcolor, &r, &g, &b, &a);
 		cairo_set_source_rgba(cr, r / 255.0, g / 255.0, b / 255.0,
 				      a / 255.0);
-		cairo_rectangle(cr, hints[i].x, hints[i].y, hints[i].w,
-				hints[i].h);
+		
+		/* Draw rounded rectangle */
+		double x = hints[i].x;
+		double y = hints[i].y;
+		double w = hints[i].w;
+		double h = hints[i].h;
+		double radius = border_radius;
+		double degrees = M_PI / 180.0;
+
+		cairo_new_sub_path(cr);
+		cairo_arc(cr, x + w - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+		cairo_arc(cr, x + w - radius, y + h - radius, radius, 0 * degrees, 90 * degrees);
+		cairo_arc(cr, x + radius, y + h - radius, radius, 90 * degrees, 180 * degrees);
+		cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+		cairo_close_path(cr);
 		cairo_fill(cr);
 
 		way_hex_to_rgba(fgcolor, &r, &g, &b, &a);
@@ -77,12 +91,10 @@ void way_hint_draw(struct screen *scr, struct hint *hints, size_t n)
 	scr->hints = create_surface(scr, 0, 0, scr->w, scr->h, 0);
 }
 
-void way_init_hint(const char *bg, const char *fg, int border_radius, const char *font)
+void way_init_hint(const char *bg, const char *fg, int _border_radius, const char *font)
 {
 	strncpy(bgcolor, bg, sizeof bgcolor);
 	strncpy(fgcolor, fg, sizeof fgcolor);
-
-	//TODO: handle border radius
-
+	border_radius = _border_radius;
 	font_family = font;
 }

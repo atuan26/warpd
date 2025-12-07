@@ -31,6 +31,8 @@ struct screen {
 
 static COLORREF hint_bgcol;
 static COLORREF hint_fgcol;
+static int hint_border_radius;
+static char hint_font_family[256];
 
 static struct screen screens[16];
 static size_t nscreens = 0;
@@ -40,8 +42,31 @@ static void draw_hints(struct screen *scr)
 	size_t i;
 
 	HBRUSH bgbrush = CreateSolidBrush(hint_bgcol);
+	HPEN pen = CreatePen(PS_SOLID, 1, hint_bgcol);
+	HPEN old_pen = SelectObject(scr->dc, pen);
 
-	SetBkColor(scr->dc, hint_bgcol);
+	/* Create font - calculate size based on hint height */
+	int font_height = -MulDiv(scr->nhints > 0 ? scr->hints[0].h * 3 / 4 : 16, 
+	                          GetDeviceCaps(scr->dc, LOGPIXELSY), 72);
+	HFONT font = CreateFontA(
+		font_height,              /* Height */
+		0,                        /* Width (0 = auto) */
+		0,                        /* Escapement */
+		0,                        /* Orientation */
+		FW_BOLD,                  /* Weight */
+		FALSE,                    /* Italic */
+		FALSE,                    /* Underline */
+		FALSE,                    /* StrikeOut */
+		DEFAULT_CHARSET,          /* CharSet */
+		OUT_DEFAULT_PRECIS,       /* OutputPrecision */
+		CLIP_DEFAULT_PRECIS,      /* ClipPrecision */
+		CLEARTYPE_QUALITY,        /* Quality */
+		DEFAULT_PITCH | FF_DONTCARE, /* PitchAndFamily */
+		hint_font_family          /* Font name */
+	);
+	HFONT old_font = SelectObject(scr->dc, font);
+
+	SetBkMode(scr->dc, TRANSPARENT);
 	for (i = 0; i < scr->nhints; i++) {
 		RECT rect;
 		wchar_t label[64];
@@ -54,17 +79,29 @@ static void draw_hints(struct screen *scr)
 
 		if (h->highlighted) {
 			HBRUSH highlight_bgbrush = CreateSolidBrush(RGB(255, 153, 0));
-			FillRect(scr->dc, &rect, highlight_bgbrush);
+			HPEN highlight_pen = CreatePen(PS_SOLID, 1, RGB(255, 153, 0));
+			SelectObject(scr->dc, highlight_bgbrush);
+			SelectObject(scr->dc, highlight_pen);
+			RoundRect(scr->dc, rect.left, rect.top, rect.right, rect.bottom, 
+			          hint_border_radius * 2, hint_border_radius * 2);
 			DeleteObject(highlight_bgbrush);
+			DeleteObject(highlight_pen);
 			SetTextColor(scr->dc, RGB(0, 0, 0));
 		} else {
-			FillRect(scr->dc, &rect, bgbrush);
+			SelectObject(scr->dc, bgbrush);
+			SelectObject(scr->dc, pen);
+			RoundRect(scr->dc, rect.left, rect.top, rect.right, rect.bottom, 
+			          hint_border_radius * 2, hint_border_radius * 2);
 			SetTextColor(scr->dc, hint_fgcol);
 		}
 
 		DrawText(scr->dc, h->label, -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 	}
 
+	SelectObject(scr->dc, old_font);
+	DeleteObject(font);
+	SelectObject(scr->dc, old_pen);
+	DeleteObject(pen);
 	DeleteObject(bgbrush);
 }
 
@@ -259,10 +296,15 @@ AcquireMutex(mtx);
 ReleaseMutex(mtx);
 }
 
-void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol)
+void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, int border_radius, const char *font_family)
 {
 	hint_bgcol = _hint_bgcol;
 	hint_fgcol = _hint_fgcol;
+	hint_border_radius = border_radius;
+	if (font_family) {
+		strncpy(hint_font_family, font_family, sizeof(hint_font_family) - 1);
+		hint_font_family[sizeof(hint_font_family) - 1] = '\0';
+	}
 }
 
 void wn_init_screen()
