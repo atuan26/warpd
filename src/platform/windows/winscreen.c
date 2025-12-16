@@ -35,11 +35,54 @@ static COLORREF hint_fgcol;
 static struct screen screens[16];
 static size_t nscreens = 0;
 
+/* Derive a bolder/lighter highlight color from the base background color */
+static COLORREF derive_highlight_bg(COLORREF base)
+{
+	int r = GetRValue(base);
+	int g = GetGValue(base);
+	int b = GetBValue(base);
+	
+	/* Calculate luminance to decide if we should lighten or darken */
+	int luminance = (r * 299 + g * 587 + b * 114) / 1000;
+	
+	if (luminance > 128) {
+		/* Light color - darken it by 30% */
+		r = (int)(r * 0.7);
+		g = (int)(g * 0.7);
+		b = (int)(b * 0.7);
+	} else {
+		/* Dark color - lighten it by 40% */
+		r = r + (int)((255 - r) * 0.4);
+		g = g + (int)((255 - g) * 0.4);
+		b = b + (int)((255 - b) * 0.4);
+	}
+	
+	return RGB(r, g, b);
+}
+
+/* Derive a contrasting foreground color for highlighted hints */
+static COLORREF derive_highlight_fg(COLORREF highlight_bg)
+{
+	int r = GetRValue(highlight_bg);
+	int g = GetGValue(highlight_bg);
+	int b = GetBValue(highlight_bg);
+	
+	/* Calculate luminance */
+	int luminance = (r * 299 + g * 587 + b * 114) / 1000;
+	
+	/* Use black text on light backgrounds, white on dark */
+	return (luminance > 128) ? RGB(0, 0, 0) : RGB(255, 255, 255);
+}
+
 static void draw_hints(struct screen *scr)
 {
 	size_t i;
 
 	HBRUSH bgbrush = CreateSolidBrush(hint_bgcol);
+	
+	/* Derive highlight colors from hint_bgcolor */
+	COLORREF highlight_bg = derive_highlight_bg(hint_bgcol);
+	COLORREF highlight_fg = derive_highlight_fg(highlight_bg);
 
 	SetBkColor(scr->dc, hint_bgcol);
 	for (i = 0; i < scr->nhints; i++) {
@@ -53,12 +96,14 @@ static void draw_hints(struct screen *scr)
 		rect.bottom = h->y+h->h;
 
 		if (h->highlighted) {
-			HBRUSH highlight_bgbrush = CreateSolidBrush(RGB(255, 153, 0));
+			HBRUSH highlight_bgbrush = CreateSolidBrush(highlight_bg);
 			FillRect(scr->dc, &rect, highlight_bgbrush);
 			DeleteObject(highlight_bgbrush);
-			SetTextColor(scr->dc, RGB(0, 0, 0));
+			SetBkColor(scr->dc, highlight_bg);
+			SetTextColor(scr->dc, highlight_fg);
 		} else {
 			FillRect(scr->dc, &rect, bgbrush);
+			SetBkColor(scr->dc, hint_bgcol);
 			SetTextColor(scr->dc, hint_fgcol);
 		}
 
