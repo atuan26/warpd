@@ -149,17 +149,8 @@ static void init_hint(const char *bg, const char *fg, int border_radius, const c
 
 void screen_list(screen_t scr[MAX_SCREENS], size_t *n)
 {
-	// Windows currently only supports single screen
-	// Multi-screen support would require significant refactoring of winscreen.c
-	POINT p = {0, 0};
-	struct screen *primary = wn_get_screen_at(p.x, p.y);
-	
-	if (primary) {
-		*n = 1;
-		scr[0] = primary;
-	} else {
-		*n = 0;
-	}
+	// Return all enumerated screens instead of just primary
+	wn_get_all_screens(scr, n);
 }
 //====================================================================================
 
@@ -504,9 +495,15 @@ static void mouse_up(int btn)
 
 static void commit()
 {
-	screen_t scr;
-	mouse_get_position(&scr, NULL, NULL);
-	wn_screen_redraw(scr);
+	size_t i;
+	screen_t screens[MAX_SCREENS];
+	size_t nscreens;
+	
+	/* Redraw all screens to ensure proper clearing when switching monitors */
+	wn_get_all_screens(screens, &nscreens);
+	for (i = 0; i < nscreens; i++) {
+		wn_screen_redraw(screens[i]);
+	}
 }
 
 /* UI element detector functions (implemented in ui_detector.c) */
