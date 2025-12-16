@@ -404,6 +404,11 @@ static void screen_get_dimensions(screen_t scr, int *w, int *h)
 	wn_screen_get_dimensions(scr, NULL, NULL, w, h);
 }
 
+static void screen_get_offset(screen_t scr, int *x, int *y)
+{
+	wn_screen_get_dimensions(scr, x, y, NULL, NULL);
+}
+
 static void mouse_move(screen_t scr, int x, int y)
 {
 	int sx, sy;
@@ -741,6 +746,7 @@ void platform_run(int (*main)(struct platform *platform))
 	platform.screen_clear = screen_clear;
 
 	platform.screen_get_dimensions = screen_get_dimensions;
+	platform.screen_get_offset = screen_get_offset;
 	platform.screen_list = screen_list;
 	platform.scroll = scroll;
 	platform.mouse_click = mouse_click;

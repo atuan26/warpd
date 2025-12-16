@@ -298,6 +298,7 @@ static void *mainloop(void *arg)
 		.screen_clear = osx_screen_clear,
 		.screen_draw_box = osx_screen_draw_box,
 		.screen_get_dimensions = osx_screen_get_dimensions,
+		.screen_get_offset = osx_screen_get_offset,
 		.screen_list = osx_screen_list,
 		.scroll = osx_scroll,
 		.monitor_file = osx_monitor_file,

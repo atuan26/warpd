@@ -136,6 +136,12 @@ void way_screen_get_dimensions(struct screen *scr, int *w, int *h)
 	*h = scr->h;
 }
 
+void way_screen_get_offset(struct screen *scr, int *x, int *y)
+{
+	if (x) *x = scr->x;
+	if (y) *y = scr->y;
+}
+
 void way_screen_clear(struct screen *scr)
 {
 	size_t i;
