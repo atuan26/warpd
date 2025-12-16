@@ -73,7 +73,11 @@ static COLORREF str_to_colorref(const char *s)
     if (s[0] == '#')
         s++;
 
-    if (strlen(s) == 6)
+    size_t len = strlen(s);
+    
+    /* Handle both 6-char (#RRGGBB) and 8-char (#RRGGBBAA) hex colors */
+    /* Note: Windows COLORREF ignores alpha, so we just parse RGB portion */
+    if (len == 6 || len == 8)
         return HEXVAL(s[5]) << 16 |
             HEXVAL(s[4]) << 20 |
             HEXVAL(s[3]) << 8 |
