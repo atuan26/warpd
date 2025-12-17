@@ -121,10 +121,10 @@ static void clear(struct screen *scr)
 	if (!br)
 		br = CreateSolidBrush(TRANSPARENT_COLOR);
 
-	rect.left = scr->x;
-	rect.top = scr->y;
-	rect.right = scr->x+scr->w;
-	rect.bottom = scr->y+scr->h;
+	rect.left = 0;
+	rect.top = 0;
+	rect.right = scr->w;
+	rect.bottom = scr->h;
 
 	FillRect(scr->dc,  &rect, br);
 }
@@ -207,8 +207,8 @@ AcquireMutex(mtx);
 
     struct screen *scr = &screens[nscreens++];
 
-    scr->x = dim->top;
-    scr->y = dim->left;
+    scr->x = dim->left;
+    scr->y = dim->top;
     scr->h = dim->bottom - dim->top;
     scr->w = dim->right - dim->left;
 
@@ -324,11 +324,23 @@ struct screen *wn_get_screen_at(int x, int y)
 
 	for (i = 0; i < nscreens; i++) {
 		if (
-			x >= screens[i].x && x <= screens[i].x + screens[i].w &&
-			y >= screens[i].y && y <= screens[i].y + screens[i].h
+			x >= screens[i].x && x < screens[i].x + screens[i].w &&
+			y >= screens[i].y && y < screens[i].y + screens[i].h
 		)
 			return &screens[i];
 	}
 
-	return NULL;
+	/* Fallback to primary monitor (index 0) when no screen matches */
+	return nscreens > 0 ? &screens[0] : NULL;
+}
+
+void wn_get_all_screens(struct screen **scr_array, size_t *count)
+{
+	size_t i;
+	
+	for (i = 0; i < nscreens; i++) {
+		scr_array[i] = &screens[i];
+	}
+	
+	*count = nscreens;
 }

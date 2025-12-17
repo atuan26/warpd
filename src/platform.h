@@ -99,6 +99,9 @@ struct platform {
 	void (*mouse_hide)();
 
 	void (*screen_get_dimensions)(screen_t scr, int *w, int *h);
+	
+	/* Get screen offset in virtual screen coordinates (for multi-monitor support) */
+	void (*screen_get_offset)(screen_t scr, int *x, int *y);
 	void (*screen_draw_box)(screen_t scr, int x, int y, int w, int h, const char *color);
 	void (*screen_clear)(screen_t scr);
 	void (*screen_list)(screen_t scr[MAX_SCREENS], size_t *n);

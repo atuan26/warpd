@@ -44,9 +44,16 @@ static void get_hint_size(screen_t scr, int *w, int *h)
 
 /**
  * Convert detected UI elements to hint structures
+ * 
+ * Note: UI elements have absolute screen coordinates, but hints need
+ * screen-relative coordinates for proper rendering and mouse movement.
+ * The screen_x and screen_y parameters are the screen's origin in
+ * virtual screen space.
  */
 static struct hint *convert_elements_to_hints(struct ui_detection_result *result,
                                                 int hint_w, int hint_h,
+                                                int screen_x, int screen_y,
+                                                int screen_w, int screen_h,
                                                 size_t *out_count,
                                                 int *out_is_opencv)
 {
@@ -77,44 +84,57 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 	*out_is_opencv = all_no_names;
 
 	/* Convert UI elements to hints */
+	size_t valid_count = 0;
 	for (size_t i = 0; i < result->count; i++) {
 		struct ui_element *element = &result->elements[i];
 
-		hints[i].x = element->x;
-		hints[i].y = element->y;
-		hints[i].w = hint_w;
-		hints[i].h = hint_h;
-		hints[i].original_index = i;
-		hints[i].highlighted = 0;
+		/* Convert absolute coordinates to screen-relative coordinates */
+		int rel_x = element->x - screen_x;
+		int rel_y = element->y - screen_y;
+
+		/* Skip elements that are outside the current screen bounds */
+		if (rel_x < 0 || rel_y < 0 || 
+		    rel_x >= screen_w || rel_y >= screen_h) {
+			continue;
+		}
+
+		hints[valid_count].x = rel_x;
+		hints[valid_count].y = rel_y;
+		hints[valid_count].w = hint_w;
+		hints[valid_count].h = hint_h;
+		hints[valid_count].original_index = i;
+		hints[valid_count].highlighted = 0;
 
 		if (element->name) {
-			hints[i].element_name = strdup(element->name);
+			hints[valid_count].element_name = strdup(element->name);
 		} else if (element->role) {
-			hints[i].element_name = strdup(element->role);
+			hints[valid_count].element_name = strdup(element->role);
 		} else {
-			hints[i].element_name = NULL;
+			hints[valid_count].element_name = NULL;
 		}
+		valid_count++;
 	}
 
 	/* Generate labels based on mode */
 	if (is_numeric_mode) {
-		hint_label_generate_numeric(hints, result->count);
-		fprintf(stderr, "DEBUG: Created %zu hints in numeric mode%s:\n",
-			result->count, all_no_names ? " (OpenCV - text filtering disabled)" : "");
-		for (size_t i = 0; i < result->count && i < 10; i++) {
+		hint_label_generate_numeric(hints, valid_count);
+		fprintf(stderr, "DEBUG: Created %zu hints in numeric mode%s (screen offset: %d,%d):\n",
+			valid_count, all_no_names ? " (OpenCV - text filtering disabled)" : "",
+			screen_x, screen_y);
+		for (size_t i = 0; i < valid_count && i < 10; i++) {
 			fprintf(stderr, "  Hint %zu: label='%s' name='%s' pos=(%d,%d)\n",
 				i, hints[i].label,
 				hints[i].element_name ? hints[i].element_name : "(null)",
 				hints[i].x, hints[i].y);
 		}
-		if (result->count > 10) {
-			fprintf(stderr, "  ... and %zu more hints\n", result->count - 10);
+		if (valid_count > 10) {
+			fprintf(stderr, "  ... and %zu more hints\n", valid_count - 10);
 		}
 	} else {
-		hint_label_generate_alphabetic(hints, result->count);
+		hint_label_generate_alphabetic(hints, valid_count);
 	}
 
-	*out_count = result->count;
+	*out_count = valid_count;
 
 	return hints;
 }
@@ -392,10 +412,20 @@ int smart_hint_mode(void)
 		return -1;
 	}
 
-	/* Convert elements to hints */
+	/* Get screen offset for coordinate conversion */
+	int screen_x = 0, screen_y = 0;
+	int screen_w, screen_h;
+	if (platform->screen_get_offset) {
+		platform->screen_get_offset(scr, &screen_x, &screen_y);
+	}
+	platform->screen_get_dimensions(scr, &screen_w, &screen_h);
+
+	/* Convert elements to hints (converting absolute to screen-relative coordinates) */
 	size_t hint_count = 0;
 	int is_opencv = 0;
 	struct hint *hint_array = convert_elements_to_hints(result, hint_w, hint_h,
+	                                                      screen_x, screen_y,
+	                                                      screen_w, screen_h,
 	                                                      &hint_count, &is_opencv);
 
 	/* Free detection result (we've copied what we need) */
