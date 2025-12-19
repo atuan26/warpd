@@ -221,12 +221,31 @@ void way_mouse_hide()
 
 void way_scroll(int direction)
 {
-	//TODO: add horizontal scroll
-	direction = direction == SCROLL_DOWN ? 1 : -1;
+	int axis = 0;  /* 0 = vertical, 1 = horizontal */
+	int dir = 1;
+	
+	switch (direction) {
+	case SCROLL_DOWN:
+		axis = 0;
+		dir = 1;
+		break;
+	case SCROLL_UP:
+		axis = 0;
+		dir = -1;
+		break;
+	case SCROLL_RIGHT:
+		axis = 1;
+		dir = 1;
+		break;
+	case SCROLL_LEFT:
+		axis = 1;
+		dir = -1;
+		break;
+	}
 
-	zwlr_virtual_pointer_v1_axis_discrete(wl.ptr, 0, 0,
-					      wl_fixed_from_int(15*direction),
-					      direction);
+	zwlr_virtual_pointer_v1_axis_discrete(wl.ptr, 0, axis,
+					      wl_fixed_from_int(15*dir),
+					      dir);
 
 	zwlr_virtual_pointer_v1_frame(wl.ptr);
 

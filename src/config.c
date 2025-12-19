@@ -60,6 +60,8 @@ static struct {
 
 	{ "scroll_down", "e", "Scroll down key.", OPT_KEY },
 	{ "scroll_up", "r", "Scroll up key.", OPT_KEY },
+	{ "scroll_left", "E", "Scroll left key.", OPT_KEY },
+	{ "scroll_right", "R", "Scroll right key.", OPT_KEY },
 
 	{ "cursor_color", "#FF4500", "The color of the pointer in normal mode (rgba hex value).", OPT_STRING },
 	{ "cursor_image", "", "Path to PNG image for normal cursor (empty = use built-in').", OPT_STRING },

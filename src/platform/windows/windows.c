@@ -266,10 +266,26 @@ static struct input_event *input_wait(struct input_event *events, size_t n)
 static void scroll(int direction)
 {
 	DWORD delta = -(DWORD)((float)WHEEL_DELTA/2.5);
-	if (direction == SCROLL_UP)
+	DWORD flags = MOUSEEVENTF_WHEEL;
+	
+	switch (direction) {
+	case SCROLL_UP:
 		delta *= -1;
+		break;
+	case SCROLL_DOWN:
+		/* delta is already negative for down */
+		break;
+	case SCROLL_LEFT:
+		flags = MOUSEEVENTF_HWHEEL;
+		delta *= -1;  /* Negative for left */
+		break;
+	case SCROLL_RIGHT:
+		flags = MOUSEEVENTF_HWHEEL;
+		/* delta is already negative, which means right for HWHEEL */
+		break;
+	}
 
-	mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0);
+	mouse_event(flags, 0, 0, delta, 0);
 }
 
 static const char *input_lookup_name(uint8_t code, int shifted)
