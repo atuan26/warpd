@@ -93,6 +93,8 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"right",
 		"screen",
 		"scroll_down",
+		"scroll_left",
+		"scroll_right",
 		"scroll_up",
 		"start",
 		"toggle_insert_mode",
@@ -153,7 +155,6 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 			redraw(scr, mx, my, 1);
 
 			if (ev->pressed) {
-				scroll_stop();
 				scroll_accelerate(SCROLL_DOWN);
 			} else
 				scroll_decelerate();
@@ -161,8 +162,21 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 			redraw(scr, mx, my, 1);
 
 			if (ev->pressed) {
-				scroll_stop();
 				scroll_accelerate(SCROLL_UP);
+			} else
+				scroll_decelerate();
+		} else if (config_input_match(ev, "scroll_left")) {
+			redraw(scr, mx, my, 1);
+
+			if (ev->pressed) {
+				scroll_accelerate(SCROLL_LEFT);
+			} else
+				scroll_decelerate();
+		} else if (config_input_match(ev, "scroll_right")) {
+			redraw(scr, mx, my, 1);
+
+			if (ev->pressed) {
+				scroll_accelerate(SCROLL_RIGHT);
 			} else
 				scroll_decelerate();
 		} else if (config_input_match(ev, "accelerator")) {

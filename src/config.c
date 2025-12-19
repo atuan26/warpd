@@ -60,6 +60,8 @@ static struct {
 
 	{ "scroll_down", "e", "Scroll down key.", OPT_KEY },
 	{ "scroll_up", "r", "Scroll up key.", OPT_KEY },
+	{ "scroll_left", "E", "Scroll left key.", OPT_KEY },
+	{ "scroll_right", "R", "Scroll right key.", OPT_KEY },
 
 	{ "cursor_color", "#FF4500", "The color of the pointer in normal mode (rgba hex value).", OPT_STRING },
 	{ "cursor_image", "", "Path to PNG image for normal cursor (empty = use built-in').", OPT_STRING },
@@ -147,10 +149,10 @@ static struct {
 
 	{ "screen_chars", "jkl;asdfg", "The characters used for screen selection.", OPT_STRING },
 
-	{ "scroll_speed", "300", "Initial scroll speed in units/second (unit varies by platform).", OPT_INT },
-	{ "scroll_max_speed", "9000", "Maximum scroll speed.", OPT_INT },
-	{ "scroll_acceleration", "1600", "Scroll acceleration in units/second^2.", OPT_INT },
-	{ "scroll_deceleration", "-3400", "Scroll deceleration.", OPT_INT },
+	{ "scroll_speed", "800", "Initial scroll speed in units/second (unit varies by platform).", OPT_INT },
+	{ "scroll_max_speed", "12000", "Maximum scroll speed.", OPT_INT },
+	{ "scroll_acceleration", "2400", "Scroll acceleration in units/second^2.", OPT_INT },
+	{ "scroll_deceleration", "-6000", "Scroll deceleration.", OPT_INT },
 
 	{ "indicator", "none", "Specifies an optional visual indicator to be displayed while normal mode is active, must be one of: topright, topleft, bottomright, bottomleft, none", OPT_STRING },
 	{ "indicator_color", "#00ff00", "The color of the visual indicator color.", OPT_STRING },

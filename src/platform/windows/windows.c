@@ -8,6 +8,12 @@ static int keyboard_grabbed = 0;
 static struct input_event *grab_events;
 static size_t ngrab_events;
 
+/* Manual modifier key state tracking (GetKeyState is unreliable in low-level hooks) */
+static int mod_shift = 0;
+static int mod_ctrl = 0;
+static int mod_alt = 0;
+static int mod_meta = 0;
+
 static int is_grabbed_key(uint8_t code, uint8_t mods)
 {
 	size_t i;
@@ -45,11 +51,35 @@ static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 			goto passthrough;
 	}
 
+	/* Update modifier tracking BEFORE calculating mods */
+	switch (code) {
+	case VK_SHIFT:
+	case VK_LSHIFT:
+	case VK_RSHIFT:
+		mod_shift = pressed;
+		break;
+	case VK_CONTROL:
+	case VK_LCONTROL:
+	case VK_RCONTROL:
+		mod_ctrl = pressed;
+		break;
+	case VK_MENU:
+	case VK_LMENU:
+	case VK_RMENU:
+		mod_alt = pressed;
+		break;
+	case VK_LWIN:
+	case VK_RWIN:
+		mod_meta = pressed;
+		break;
+	}
+
+	/* Build mods from our tracked state */
 	mods = (
-		((GetKeyState(VK_SHIFT) & 0x8000) ? PLATFORM_MOD_SHIFT : 0) |
-		((GetKeyState(VK_CONTROL) & 0x8000) ? PLATFORM_MOD_CONTROL : 0) |
-		((GetKeyState(VK_MENU) & 0x8000) ? PLATFORM_MOD_ALT : 0) |
-		((GetKeyState(VK_LWIN) & 0x8000 || GetKeyState(VK_RWIN) & 0x8000) ? PLATFORM_MOD_META : 0));
+		(mod_shift ? PLATFORM_MOD_SHIFT : 0) |
+		(mod_ctrl ? PLATFORM_MOD_CONTROL : 0) |
+		(mod_alt ? PLATFORM_MOD_ALT : 0) |
+		(mod_meta ? PLATFORM_MOD_META : 0));
 
 	PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
 
@@ -158,9 +188,9 @@ static struct input_event *input_next_event(int timeout)
 
 static void init_hint(const char *bg, const char *fg, int border_radius, const char *font_family)
 {
-	//TODO: handle font family and border radius.
+	//TODO: handle font family.
 	BYTE alpha = str_to_alpha(bg);
-	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), alpha);
+	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), alpha, border_radius);
 }
 
 //====================================================================================
@@ -265,11 +295,28 @@ static struct input_event *input_wait(struct input_event *events, size_t n)
 
 static void scroll(int direction)
 {
-	DWORD delta = -(DWORD)((float)WHEEL_DELTA/2.5);
-	if (direction == SCROLL_UP)
+	/* Smaller delta for smoother scrolling */
+	DWORD delta = -(DWORD)((float)WHEEL_DELTA/8);
+	DWORD flags = MOUSEEVENTF_WHEEL;
+	
+	switch (direction) {
+	case SCROLL_UP:
 		delta *= -1;
+		break;
+	case SCROLL_DOWN:
+		/* delta is already negative for down */
+		break;
+	case SCROLL_LEFT:
+		flags = MOUSEEVENTF_HWHEEL;
+		delta *= -1;  /* Negative for left */
+		break;
+	case SCROLL_RIGHT:
+		flags = MOUSEEVENTF_HWHEEL;
+		/* delta is already negative, which means right for HWHEEL */
+		break;
+	}
 
-	mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0);
+	mouse_event(flags, 0, 0, delta, 0);
 }
 
 static const char *input_lookup_name(uint8_t code, int shifted)
