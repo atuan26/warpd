@@ -88,6 +88,23 @@ static COLORREF str_to_colorref(const char *s)
     return 0;
 }
 
+/* Extract alpha value from RGBA hex string (e.g., #FF4500AA returns 170) */
+static BYTE str_to_alpha(const char *s)
+{
+    if (s[0] == '#')
+        s++;
+
+    size_t len = strlen(s);
+    
+    /* 8-char format includes alpha: #RRGGBBAA */
+    if (len == 8) {
+        return (BYTE)((HEXVAL(s[6]) << 4) | HEXVAL(s[7]));
+    }
+    
+    /* 6-char format has no alpha, return fully opaque */
+    return 255;
+}
+
 static void utf8_encode(const wchar_t *wstr, char *buf, size_t buf_sz)
 {
     int nw = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, buf, buf_sz, NULL, NULL);
@@ -142,7 +159,8 @@ static struct input_event *input_next_event(int timeout)
 static void init_hint(const char *bg, const char *fg, int border_radius, const char *font_family)
 {
 	//TODO: handle font family and border radius.
-	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg));
+	BYTE alpha = str_to_alpha(bg);
+	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), alpha);
 }
 
 //====================================================================================

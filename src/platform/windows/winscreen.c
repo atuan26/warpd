@@ -31,6 +31,7 @@ struct screen {
 
 static COLORREF hint_bgcol;
 static COLORREF hint_fgcol;
+static BYTE hint_alpha = 255;
 
 static struct screen screens[16];
 static size_t nscreens = 0;
@@ -195,7 +196,7 @@ static HWND create_overlay(int x, int y, int w, int h)
 
 	assert(wnd);
 
-	SetLayeredWindowAttributes(wnd, TRANSPARENT_COLOR, 0, LWA_COLORKEY);
+	SetLayeredWindowAttributes(wnd, TRANSPARENT_COLOR, hint_alpha, LWA_COLORKEY | LWA_ALPHA);
 	return wnd;
 }
 
@@ -304,10 +305,20 @@ AcquireMutex(mtx);
 ReleaseMutex(mtx);
 }
 
-void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol)
+void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, BYTE alpha)
 {
+	AcquireMutex(mtx);
 	hint_bgcol = _hint_bgcol;
 	hint_fgcol = _hint_fgcol;
+	hint_alpha = alpha;
+
+	/* Apply alpha to all existing overlay windows */
+	for (size_t i = 0; i < nscreens; i++) {
+		if (screens[i].overlay) {
+			SetLayeredWindowAttributes(screens[i].overlay, TRANSPARENT_COLOR, hint_alpha, LWA_COLORKEY | LWA_ALPHA);
+		}
+	}
+	ReleaseMutex(mtx);
 }
 
 void wn_init_screen()
