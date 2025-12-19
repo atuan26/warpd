@@ -1,3 +1,5 @@
+#if defined(HAVE_OPENCV)
+
 /*
  * warpd - A modal keyboard-driven pointing system.
  *
@@ -220,3 +222,5 @@ void opencv_free_ui_elements_common(struct ui_detection_result *result)
 
     free(result);
 }
+
+#endif // HAVE_OPENCV

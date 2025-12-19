@@ -20,9 +20,7 @@ extern int uiautomation_is_available(void);
 extern void uiautomation_cleanup(void);
 
 /* Forward declarations for OpenCV functions (implemented in C++) */
-extern struct ui_detection_result *opencv_detect_ui_elements(void);
-extern void opencv_free_ui_elements(struct ui_detection_result *result);
-extern int opencv_is_available(void);
+#include "../../common/opencv_detector.h"
 
 /**
  * Detect UI elements using Windows UI Automation with OpenCV fallback

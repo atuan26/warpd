@@ -20,9 +20,22 @@ CXXFLAGS+=-mwindows
 LDFLAGS+=-mwindows
 endif
 
-CXXFLAGS+=-I/mingw64/include/opencv4
-LDFLAGS+=-lopencv_imgproc -lopencv_core
-OPENCV_FILES=src/common/opencv_detector.cpp
+# Static linking: eliminate MinGW DLL dependencies (libgcc, libstdc++, libwinpthread)
+# Usage: make STATIC=1
+ifdef STATIC
+LDFLAGS+=-static -static-libgcc -static-libstdc++
+endif
+
+# OpenCV Config
+OPENCV_ENABLE ?= 0
+ifeq ($(OPENCV_ENABLE), 1)
+	CFLAGS+=-DHAVE_OPENCV
+	CXXFLAGS+=-I/mingw64/include/opencv4 -DHAVE_OPENCV
+	LDFLAGS+=-lopencv_imgproc -lopencv_core
+	OPENCV_FILES=src/common/opencv_detector.cpp
+else
+	OPENCV_FILES=
+endif
 
 CFILES=$(shell find src/*.c src/windows/*.c src/platform/windows/*.c src/common/*.c src/smart_hint/*.c ! -name 'warpd.c' ! -name 'atspi-detector.c')
 CXXFILES=$(shell find src/platform/windows/*.cpp) $(OPENCV_FILES)

@@ -7,6 +7,7 @@
 #ifndef OPENCV_DETECTOR_H
 #define OPENCV_DETECTOR_H
 
+#ifdef HAVE_OPENCV
 #ifdef __cplusplus
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -19,16 +20,26 @@ void opencv_free_ui_elements_common(struct ui_detection_result *result);
 
 extern "C" {
 #endif
+#endif // HAVE_OPENCV
 
 #include "../platform.h"
 
+#ifdef HAVE_OPENCV
 // C interface functions that each platform must implement
 struct ui_detection_result *opencv_detect_ui_elements(void);
 void opencv_free_ui_elements(struct ui_detection_result *result);
 int opencv_is_available(void);
+#else
+// Stubs for when OpenCV is disabled
+static inline struct ui_detection_result *opencv_detect_ui_elements(void) { return NULL; }
+static inline void opencv_free_ui_elements(struct ui_detection_result *result) { (void)result; }
+static inline int opencv_is_available(void) { return 0; }
+#endif
 
+#ifdef HAVE_OPENCV
 #ifdef __cplusplus
 }
 #endif
+#endif // HAVE_OPENCV
 
 #endif // OPENCV_DETECTOR_H
