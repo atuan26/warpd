@@ -8,6 +8,8 @@
 
 #ifdef __APPLE__
 #define factor 1
+#elif defined(WINDOWS)
+#define factor 15
 #else
 #define factor 50
 #endif
@@ -75,14 +77,18 @@ void scroll_decelerate()
 
 void scroll_accelerate(int _direction)
 {
+	/* If we're already scrolling in this direction, just ensure acceleration
+	 * is maintained. This prevents key repeat events from resetting velocity. */
+	if (direction == _direction && v > 0) {
+		a = a0;
+		return;
+	}
+
 	direction = _direction;
 	a = a0;
-
-	if (v == 0) {
-		d = 0;
-		traveled = 0;
-		v = v0;
-	}
+	d = 0;
+	traveled = 0;
+	v = v0;
 }
 
 void scroll_impart_impulse()

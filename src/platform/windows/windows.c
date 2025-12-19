@@ -295,7 +295,8 @@ static struct input_event *input_wait(struct input_event *events, size_t n)
 
 static void scroll(int direction)
 {
-	DWORD delta = -(DWORD)((float)WHEEL_DELTA/2.5);
+	/* Smaller delta for smoother scrolling */
+	DWORD delta = -(DWORD)((float)WHEEL_DELTA/8);
 	DWORD flags = MOUSEEVENTF_WHEEL;
 	
 	switch (direction) {
