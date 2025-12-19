@@ -14,9 +14,7 @@
 #include <glib-2.0/glib.h>
 
 /* Forward declarations for OpenCV fallback (implemented separately) */
-extern struct ui_detection_result *opencv_detect_ui_elements(void);
-extern void opencv_free_ui_elements(struct ui_detection_result *result);
-extern int opencv_is_available(void);
+#include "../../common/opencv_detector.h"
 
 /**
  * Convert AT-SPI ElementInfo to platform ui_element

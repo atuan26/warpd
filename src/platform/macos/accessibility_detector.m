@@ -12,9 +12,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 
 /* Forward declarations for OpenCV fallback */
-extern struct ui_detection_result *opencv_detect_ui_elements(void);
-extern void opencv_free_ui_elements(struct ui_detection_result *result);
-extern int opencv_is_available(void);
+#include "../../common/opencv_detector.h"
 
 /**
  * Convert AXElement to platform ui_element

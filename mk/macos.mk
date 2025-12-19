@@ -2,7 +2,7 @@
 
 CFILES=$(shell find src/*.c src/common/*.c src/smart_hint/*.c)
 OBJCFILES=$(shell find src/platform/macos -name '*.m')
-CXXFILES=src/common/opencv_detector.cpp
+CXXFILES=
 OBJCPPFILES=$(shell find src/platform/macos -name '*.mm')
 OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o) $(OBJCPPFILES:.mm=.o)
 
@@ -10,17 +10,26 @@ OBJECTS=$(CFILES:.c=.o) $(OBJCFILES:.m=.o) $(CXXFILES:.cpp=.o) $(OBJCPPFILES:.mm
 BREW_PREFIX := $(shell if [ "$(shell uname -m)" = "arm64" ] && [ -d "/opt/homebrew" ]; then echo "/opt/homebrew"; else echo "/usr/local"; fi)
 
 # Set up OpenCV paths
-OPENCV_INCLUDE := $(BREW_PREFIX)/opt/opencv/include/opencv4
-OPENCV_LIB := $(BREW_PREFIX)/opt/opencv/lib
-CXXFLAGS += -I$(OPENCV_INCLUDE)
+# OpenCV support
+OPENCV_ENABLE ?= 0
 
-# Configure OpenCV libraries
-OPENCV_PC := $(wildcard $(BREW_PREFIX)/Cellar/opencv/*/lib/pkgconfig/opencv4.pc)
-ifneq ($(OPENCV_PC),)
-    OPENCV_LIBS := $(shell grep "^Libs:" $(OPENCV_PC) | sed 's/^Libs: //' | sed 's/-L[^ ]* //g')
-    LDFLAGS += -L$(OPENCV_LIB) $(OPENCV_LIBS) -lstdc++
-else
-    LDFLAGS += -L$(OPENCV_LIB) -lopencv_imgproc -lopencv_core -lstdc++
+# Set up OpenCV paths
+ifeq ($(OPENCV_ENABLE), 1)
+	CXXFILES+=src/common/opencv_detector.cpp
+
+	OPENCV_INCLUDE := $(BREW_PREFIX)/opt/opencv/include/opencv4
+	OPENCV_LIB := $(BREW_PREFIX)/opt/opencv/lib
+	CFLAGS += -DHAVE_OPENCV
+	CXXFLAGS += -I$(OPENCV_INCLUDE) -DHAVE_OPENCV
+
+	# Configure OpenCV libraries
+	OPENCV_PC := $(wildcard $(BREW_PREFIX)/Cellar/opencv/*/lib/pkgconfig/opencv4.pc)
+	ifneq ($(OPENCV_PC),)
+		OPENCV_LIBS := $(shell grep "^Libs:" $(OPENCV_PC) | sed 's/^Libs: //' | sed 's/-L[^ ]* //g')
+		LDFLAGS += -L$(OPENCV_LIB) $(OPENCV_LIBS) -lstdc++
+	else
+		LDFLAGS += -L$(OPENCV_LIB) -lopencv_imgproc -lopencv_core -lstdc++
+	endif
 endif
 
 RELFLAGS=-Wl,-adhoc_codesign -framework cocoa -framework carbon -framework ScreenCaptureKit -framework CoreVideo -framework CoreMedia -framework ApplicationServices
