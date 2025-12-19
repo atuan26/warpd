@@ -1,3 +1,14 @@
+# v2.2.0
+
+- Implement numeric-based hints with label filtering
+- Add insert mode
+- Make cursor appearance configurable
+- Block keyboard input during detection
+- Updates for multiple screen support
+- Make OpenCV detector optional (OPENCV_ENABLE=1)
+- Add STATIC=1 build option for standalone Windows executables
+- Ensure overlay window is always topmost
+
 # v2.1.0
 
 ## Windows
