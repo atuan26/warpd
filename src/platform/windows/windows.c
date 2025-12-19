@@ -8,6 +8,12 @@ static int keyboard_grabbed = 0;
 static struct input_event *grab_events;
 static size_t ngrab_events;
 
+/* Manual modifier key state tracking (GetKeyState is unreliable in low-level hooks) */
+static int mod_shift = 0;
+static int mod_ctrl = 0;
+static int mod_alt = 0;
+static int mod_meta = 0;
+
 static int is_grabbed_key(uint8_t code, uint8_t mods)
 {
 	size_t i;
@@ -45,11 +51,35 @@ static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 			goto passthrough;
 	}
 
+	/* Update modifier tracking BEFORE calculating mods */
+	switch (code) {
+	case VK_SHIFT:
+	case VK_LSHIFT:
+	case VK_RSHIFT:
+		mod_shift = pressed;
+		break;
+	case VK_CONTROL:
+	case VK_LCONTROL:
+	case VK_RCONTROL:
+		mod_ctrl = pressed;
+		break;
+	case VK_MENU:
+	case VK_LMENU:
+	case VK_RMENU:
+		mod_alt = pressed;
+		break;
+	case VK_LWIN:
+	case VK_RWIN:
+		mod_meta = pressed;
+		break;
+	}
+
+	/* Build mods from our tracked state */
 	mods = (
-		((GetKeyState(VK_SHIFT) & 0x8000) ? PLATFORM_MOD_SHIFT : 0) |
-		((GetKeyState(VK_CONTROL) & 0x8000) ? PLATFORM_MOD_CONTROL : 0) |
-		((GetKeyState(VK_MENU) & 0x8000) ? PLATFORM_MOD_ALT : 0) |
-		((GetKeyState(VK_LWIN) & 0x8000 || GetKeyState(VK_RWIN) & 0x8000) ? PLATFORM_MOD_META : 0));
+		(mod_shift ? PLATFORM_MOD_SHIFT : 0) |
+		(mod_ctrl ? PLATFORM_MOD_CONTROL : 0) |
+		(mod_alt ? PLATFORM_MOD_ALT : 0) |
+		(mod_meta ? PLATFORM_MOD_META : 0));
 
 	PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
 
