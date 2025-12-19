@@ -8,6 +8,7 @@
 static char bgcolor[16];
 static char fgcolor[16];
 static const char *font_family;
+static int hint_border_radius = 0;
 
 static int calculate_font_size(cairo_t *cr, int w, int h)
 {
@@ -25,6 +26,26 @@ static int calculate_font_size(cairo_t *cr, int w, int h)
 	} while (extents.height > h || extents.width > w);
 
 	return sz;
+}
+
+/* Draw a rounded rectangle path in Cairo */
+static void cairo_rounded_rectangle(cairo_t *cr, double x, double y, double w, double h, double r)
+{
+	if (r <= 0) {
+		cairo_rectangle(cr, x, y, w, h);
+		return;
+	}
+	
+	/* Clamp radius to half of smallest dimension */
+	if (r > w / 2) r = w / 2;
+	if (r > h / 2) r = h / 2;
+	
+	cairo_new_sub_path(cr);
+	cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);           /* top-right */
+	cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);        /* bottom-right */
+	cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);         /* bottom-left */
+	cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);         /* top-left */
+	cairo_close_path(cr);
 }
 
 static void cairo_draw_text(cairo_t *cr, const char *s, int x, int y, int w, int h)
@@ -62,8 +83,8 @@ void way_hint_draw(struct screen *scr, struct hint *hints, size_t n)
 		way_hex_to_rgba(bgcolor, &r, &g, &b, &a);
 		cairo_set_source_rgba(cr, r / 255.0, g / 255.0, b / 255.0,
 				      a / 255.0);
-		cairo_rectangle(cr, hints[i].x, hints[i].y, hints[i].w,
-				hints[i].h);
+		cairo_rounded_rectangle(cr, hints[i].x, hints[i].y, hints[i].w,
+				hints[i].h, hint_border_radius);
 		cairo_fill(cr);
 
 		way_hex_to_rgba(fgcolor, &r, &g, &b, &a);
@@ -82,7 +103,8 @@ void way_init_hint(const char *bg, const char *fg, int border_radius, const char
 	strncpy(bgcolor, bg, sizeof bgcolor);
 	strncpy(fgcolor, fg, sizeof fgcolor);
 
-	//TODO: handle border radius
+	hint_border_radius = border_radius;
 
 	font_family = font;
 }
+

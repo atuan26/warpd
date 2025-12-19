@@ -158,9 +158,9 @@ static struct input_event *input_next_event(int timeout)
 
 static void init_hint(const char *bg, const char *fg, int border_radius, const char *font_family)
 {
-	//TODO: handle font family and border radius.
+	//TODO: handle font family.
 	BYTE alpha = str_to_alpha(bg);
-	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), alpha);
+	wn_screen_set_hintinfo(str_to_colorref(bg), str_to_colorref(fg), alpha, border_radius);
 }
 
 //====================================================================================

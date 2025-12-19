@@ -32,6 +32,7 @@ struct screen {
 static COLORREF hint_bgcol;
 static COLORREF hint_fgcol;
 static BYTE hint_alpha = 255;
+static int hint_border_radius = 0;
 
 static struct screen screens[16];
 static size_t nscreens = 0;
@@ -75,6 +76,25 @@ static COLORREF derive_highlight_fg(COLORREF highlight_bg)
 	return (luminance > 128) ? RGB(0, 0, 0) : RGB(255, 255, 255);
 }
 
+/* Draw a filled rounded rectangle */
+static void draw_rounded_rect(HDC dc, int x, int y, int w, int h, int r, HBRUSH brush)
+{
+	if (r <= 0) {
+		RECT rect = {x, y, x + w, y + h};
+		FillRect(dc, &rect, brush);
+		return;
+	}
+	
+	/* Clamp radius */
+	if (r > w / 2) r = w / 2;
+	if (r > h / 2) r = h / 2;
+	
+	/* Create a rounded rectangle region */
+	HRGN rgn = CreateRoundRectRgn(x, y, x + w + 1, y + h + 1, r * 2, r * 2);
+	FillRgn(dc, rgn, brush);
+	DeleteObject(rgn);
+}
+
 static void draw_hints(struct screen *scr)
 {
 	size_t i;
@@ -98,17 +118,24 @@ static void draw_hints(struct screen *scr)
 
 		if (h->highlighted) {
 			HBRUSH highlight_bgbrush = CreateSolidBrush(highlight_bg);
-			FillRect(scr->dc, &rect, highlight_bgbrush);
+			draw_rounded_rect(scr->dc, h->x, h->y, h->w, h->h, hint_border_radius, highlight_bgbrush);
 			DeleteObject(highlight_bgbrush);
 			SetBkColor(scr->dc, highlight_bg);
 			SetTextColor(scr->dc, highlight_fg);
 		} else {
-			FillRect(scr->dc, &rect, bgbrush);
+			draw_rounded_rect(scr->dc, h->x, h->y, h->w, h->h, hint_border_radius, bgbrush);
 			SetBkColor(scr->dc, hint_bgcol);
 			SetTextColor(scr->dc, hint_fgcol);
 		}
 
+		/* For rounded corners, we need transparent text background */
+		if (hint_border_radius > 0) {
+			SetBkMode(scr->dc, TRANSPARENT);
+		}
 		DrawText(scr->dc, h->label, -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+		if (hint_border_radius > 0) {
+			SetBkMode(scr->dc, OPAQUE);
+		}
 	}
 
 	DeleteObject(bgbrush);
@@ -305,12 +332,13 @@ AcquireMutex(mtx);
 ReleaseMutex(mtx);
 }
 
-void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, BYTE alpha)
+void wn_screen_set_hintinfo(COLORREF _hint_bgcol, COLORREF _hint_fgcol, BYTE alpha, int border_radius)
 {
 	AcquireMutex(mtx);
 	hint_bgcol = _hint_bgcol;
 	hint_fgcol = _hint_fgcol;
 	hint_alpha = alpha;
+	hint_border_radius = border_radius;
 
 	/* Apply alpha to all existing overlay windows */
 	for (size_t i = 0; i < nscreens; i++) {
