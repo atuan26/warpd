@@ -10,6 +10,40 @@
 extern struct ui_detection_result *linux_detect_ui_elements(void);
 extern void linux_free_ui_elements(struct ui_detection_result *result);
 
+/* Passthrough mode tracking */
+static int passthrough_active = 0;
+
+static int way_is_passthrough_active()
+{
+	return passthrough_active;
+}
+
+void way_set_passthrough_active(int active)
+{
+	passthrough_active = active;
+}
+
+/*
+ * TODO: Implement passthrough mode in Wayland input handling
+ * 
+ * In input.c handle_key():
+ * 1. Parse config_get("passthrough_key") to determine which key to use
+ * 2. Check if event matches the passthrough key:
+ *    - Compare event code against parsed passthrough key code
+ *    - Check that x_active_mods matches required modifiers
+ * 3. On passthrough key press: call way_set_passthrough_active(1)
+ * 4. On passthrough key release: call way_set_passthrough_active(0)
+ * 5. When passthrough_active:
+ *    - Call way_input_ungrab_keyboard() to release the input surface
+ *    - Keys will naturally go to the focused application
+ *    - Need to keep monitoring for passthrough key release (may need a separate approach)
+ * 6. When passthrough key released: call way_input_grab_keyboard() to resume control
+ * 
+ * Challenge: Wayland grabs via a focused surface - ungrabbing means
+ * we lose all keyboard events. May need to use a different approach
+ * such as virtual keyboard protocol to inject passthrough events.
+ */
+
 /* Insert text mode - uses zenity for text input */
 static int wayland_insert_text_mode(screen_t scr)
 {
@@ -322,4 +356,7 @@ void wayland_init(struct platform *platform)
 	
 	/* Paste key (copy already exists as way_copy_selection) */
 	platform->send_paste = wayland_send_paste;
+	
+	/* Passthrough mode */
+	platform->is_passthrough_active = way_is_passthrough_active;
 }

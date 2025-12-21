@@ -18,6 +18,41 @@ extern "C" {
 }
 #endif
 
+/* Passthrough mode tracking */
+static int passthrough_active = 0;
+
+static int osx_is_passthrough_active()
+{
+	return passthrough_active;
+}
+
+void osx_set_passthrough_active(int active)
+{
+	passthrough_active = active;
+}
+
+/*
+ * TODO: Implement passthrough mode in macOS input handling
+ * 
+ * In input.m eventTapCallback():
+ * 1. Parse config_get("passthrough_key") to determine which key to use
+ * 2. Check if event matches the passthrough key:
+ *    - Compare event code against parsed passthrough key code
+ *    - Verify no other modifiers are held (or match required mods)
+ * 3. On passthrough key press:
+ *    - Call osx_set_passthrough_active(1)
+ *    - Return nil (consume the passthrough key itself)
+ * 4. On passthrough key release:
+ *    - Call osx_set_passthrough_active(0)
+ *    - Return nil (consume the passthrough key itself)
+ * 5. When passthrough_active && event is NOT the passthrough key:
+ *    - Return event (pass through to applications)
+ *    - Do NOT write to input_fds (skip warpd processing)
+ * 6. The CGEventTap remains active to catch passthrough key release
+ * 
+ * This is similar to Windows - the event tap stays active but
+ * chooses what to consume vs pass through.
+ */
 
 static void osx_send_paste()
 {
@@ -288,6 +323,7 @@ static void *mainloop(void *arg)
 		.input_next_event = osx_input_next_event,
 		.input_ungrab_keyboard = osx_input_ungrab_keyboard,
 		.input_wait = osx_input_wait,
+		.is_passthrough_active = osx_is_passthrough_active,
 		.mouse_click = osx_mouse_click,
 		.mouse_down = osx_mouse_down,
 		.mouse_get_position = osx_mouse_get_position,
