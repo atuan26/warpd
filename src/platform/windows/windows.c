@@ -91,8 +91,23 @@ static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		(mod_alt ? PLATFORM_MOD_ALT : 0) |
 		(mod_meta ? PLATFORM_MOD_META : 0));
 
+	/* If keyboard is not grabbed, reset passthrough state */
+	if (!keyboard_grabbed) {
+		passthrough_active = 0;
+		
+		/* Still need to send to warpd and check for activation keys */
+		PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
+		
+		/* Check for activation keys (e.g., A-M-c to enter normal mode) */
+		if (is_grabbed_key(code, mods))
+			return 1;  /* Consume the activation key */
+		
+		/* Not an activation key, pass through to apps */
+		goto passthrough;
+	}
+
 	/* Check if this is the passthrough key (only when keyboard is grabbed) */
-	if (keyboard_grabbed) {
+	{
 		int is_passthrough_key = 0;
 		
 		/* 
@@ -195,14 +210,14 @@ static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		}
 	}
 
-	/* Only send to warpd if NOT in passthrough mode */
+	/* Normal warpd mode: send to warpd and consume the key */
 	PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
 
 	if (is_grabbed_key(code, mods))
 		return 1;
 
-	if (keyboard_grabbed)
-		return 1;  //return non zero to consume the input
+	/* keyboard_grabbed is true here, consume all input */
+	return 1;
 
 passthrough:
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -606,6 +621,9 @@ static void input_grab_keyboard()
 
 	keyboard_grabbed = 1;
 	
+	/* Ensure passthrough mode starts as inactive */
+	passthrough_active = 0;
+	
 	/* Use BlockInput to block all keyboard and mouse input
 	 * 
 	 * IMPORTANT: Requires administrator privileges to work!
@@ -618,6 +636,15 @@ static void input_grab_keyboard()
 static void input_ungrab_keyboard()
 {
 	keyboard_grabbed = 0;
+	
+	/* Reset passthrough state when exiting warpd */
+	passthrough_active = 0;
+	
+	/* Reset modifier tracking to avoid stale state */
+	mod_shift = 0;
+	mod_ctrl = 0;
+	mod_alt = 0;
+	mod_meta = 0;
 	
 	// Unblock keyboard input
 	BlockInput(FALSE);
