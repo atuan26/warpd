@@ -86,7 +86,6 @@ struct input_event *grid_mode()
 	const int nc = config_get_int("grid_nc");
 	const int nr = config_get_int("grid_nr");
 
-	platform->input_grab_keyboard();
 	platform->mouse_hide();
 	mouse_reset();
 
@@ -198,8 +197,6 @@ exit:
 	config_input_whitelist(NULL, 0);
 	platform->screen_clear(scr);
 	platform->mouse_show();
-
-	platform->input_ungrab_keyboard();
 
 	platform->commit();
 	return ev;

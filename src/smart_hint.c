@@ -195,8 +195,7 @@ static int hint_selection_loop(screen_t scr, struct hint *hints, size_t nr_hints
 	int rc = 0;
 	int last_input_was_letter = 0;
 
-	/* Setup input */
-	platform->input_grab_keyboard();
+	/* Setup input - keyboard is already grabbed by mode_loop() */
 	platform->mouse_hide();
 
 	const char *keys[] = {
@@ -315,8 +314,7 @@ static int hint_selection_loop(screen_t scr, struct hint *hints, size_t nr_hints
 		}
 	}
 
-	/* Cleanup */
-	platform->input_ungrab_keyboard();
+	/* Cleanup - keyboard ungrab is handled by mode_loop() */
 	hint_renderer_clear(scr);
 	platform->mouse_show();
 	platform->commit();
@@ -353,14 +351,11 @@ int smart_hint_mode(void)
 	draw_loading_cursor(scr, mx, my);
 	platform->commit();
 
-	/* Lock keyboard during detection */
-	platform->input_grab_keyboard();
 
 	/* Start detection in background thread */
 	detector_thread_t *thread = detector_thread_create();
 	if (!thread) {
 		fprintf(stderr, "Failed to create detection thread\n");
-		platform->input_ungrab_keyboard();
 		platform->mouse_show();
 		return -1;
 	}
@@ -368,7 +363,6 @@ int smart_hint_mode(void)
 	if (detector_thread_start(thread) != 0) {
 		fprintf(stderr, "Failed to start detection thread\n");
 		detector_thread_destroy(thread);
-		platform->input_ungrab_keyboard();
 		platform->mouse_show();
 		return -1;
 	}
@@ -392,8 +386,6 @@ int smart_hint_mode(void)
 	/* Wait for thread and get result */
 	struct ui_detection_result *result = detector_thread_join(thread);
 
-	/* Unlock keyboard */
-	platform->input_ungrab_keyboard();
 
 	platform->screen_clear(scr);
 	platform->commit();
