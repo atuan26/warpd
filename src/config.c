@@ -28,7 +28,7 @@ static struct {
 
 	/* Normal mode keys */
 
-	{ "exit", "esc", "Exit the currently active warpd session.", OPT_KEY },
+	{ "exit", "esc", "Exit all modes. Returns to normal mode from sub-modes, or exits warpd if already in normal mode.", OPT_KEY },
 	{ "toggle_insert_mode", "i", "Show text input dialog. Pre-fills with clipboard. Type text and press Enter to paste, or Escape to cancel.", OPT_KEY },
 	{ "drag", "v", "Toggle drag mode (mnemonic (v)isual mode).", OPT_KEY },
 	{ "copy", "y", "Send the copy key", OPT_KEY },
@@ -96,7 +96,6 @@ static struct {
 	{ "grid_cut_down", "S", "Cut the grid down.", OPT_KEY },
 	{ "grid_cut_right", "D", "Cut the grid right.", OPT_KEY },
 	{ "grid_keys", "u i j k", "A sequence of comma delimited keybindings which are ordered bookwise with respect to grid position.", OPT_KEY },
-	{ "grid_exit", "c", "Exit grid mode and return to normal mode.", OPT_KEY },
 
 	{ "grid_size", "4", "The thickness of grid lines in pixels.", OPT_INT },
 	{ "grid_border_size", "0", "The thickness of the grid border in pixels.", OPT_INT },
@@ -104,7 +103,6 @@ static struct {
 	{ "grid_color", "#1c1c1e", "The color of the grid.", OPT_STRING },
 	{ "grid_border_color", "#ffffff", "The color of the grid border.", OPT_STRING },
 
-	{ "smart_hint_exit", "esc capslock", "Exit smart hint mode and return to normal mode (space-separated list of keys).", OPT_KEY },
 	{ "smart_hint_select", "enter space", "Select highlighted hint in numeric mode.", OPT_KEY },
 
 	/* OpenCV detection parameters (used as fallback for smart hint) */
@@ -138,7 +136,6 @@ static struct {
 	{ "hint_size", "20", "Hint size (range: 1-1000)", OPT_INT },
 	{ "hint_border_radius", "3", "Border radius.", OPT_INT },
 
-	{ "hint_exit", "esc", "The exit key used for hint mode.", OPT_KEY },
 	{ "hint_undo", "backspace", "undo last selection step in one of the hint based modes.", OPT_KEY },
 	{ "hint_undo_all", "C-u", "undo all selection steps in one of the hint based modes.", OPT_KEY },
 
