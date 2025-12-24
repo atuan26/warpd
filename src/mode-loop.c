@@ -12,9 +12,7 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 
 		switch (mode) {
 		case MODE_HISTORY:
-			if (history_hint_mode() < 0)
-				goto exit;
-
+			history_hint_mode();
 			ev = NULL;
 			mode = MODE_NORMAL;
 			break;
@@ -47,15 +45,13 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 			break;
 		case MODE_HINT2:
 		case MODE_HINT:
-			if (full_hint_mode(mode == MODE_HINT2) < 0)
-				goto exit;
-
+			full_hint_mode(mode == MODE_HINT2);
 			ev = NULL;
 			mode = MODE_NORMAL;
 			break;
 		case MODE_GRID:
 			ev = grid_mode();
-			if (config_input_match(ev, "grid_exit"))
+			if (config_input_match(ev, "exit"))
 				ev = NULL;
 			mode = MODE_NORMAL;
 			break;

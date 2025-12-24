@@ -116,7 +116,6 @@ struct input_event *grid_mode()
 		"hint",
 		"exit",
 		"drag",
-		"grid_exit",
 	};
 
 	config_input_whitelist(keys, sizeof keys / sizeof keys[0]);
@@ -189,8 +188,7 @@ struct input_event *grid_mode()
 		if (config_input_match(ev, "grid") ||
 		    config_input_match(ev, "hint") ||
 		    config_input_match(ev, "exit") ||
-		    config_input_match(ev, "drag") ||
-		    config_input_match(ev, "grid_exit"))
+		    config_input_match(ev, "drag"))
 			goto exit;
 
 		redraw(mx, my, 0);

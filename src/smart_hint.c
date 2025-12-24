@@ -200,7 +200,7 @@ static int hint_selection_loop(screen_t scr, struct hint *hints, size_t nr_hints
 	platform->mouse_hide();
 
 	const char *keys[] = {
-		"smart_hint_exit",
+		"exit",
 		"smart_hint_select",
 		"hint_undo_all",
 		"hint_undo",
