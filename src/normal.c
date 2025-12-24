@@ -111,6 +111,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		platform->mouse_hide();
 
 	mouse_reset();
+	scroll_stop();  /* Reset any stale scroll state from previous sessions */
 	redraw(scr, mx, my, !show_cursor);
 
 	uint64_t time = 0;
