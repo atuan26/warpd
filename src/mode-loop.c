@@ -6,6 +6,10 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 	int rc = 0;
 	struct input_event *ev = NULL;
 
+	/* Grab keyboard at the start - will be held throughout all mode transitions 
+	 * This prevents key leaks between mode transitions */
+	platform->input_grab_keyboard();
+
 	while (1) {
 		int btn = 0;
 		config_input_whitelist(NULL, 0);
@@ -82,10 +86,15 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 			else
 				printf("%d %d\n", x, y);
 
+			/* Ungrab before returning */
+			platform->input_ungrab_keyboard();
 			return btn;
 		}
 	}
 
 exit:
+	/* Ungrab keyboard when truly exiting */
+	platform->input_ungrab_keyboard();
 	return rc;
 }
+

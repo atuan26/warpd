@@ -14,6 +14,15 @@ static int mod_ctrl = 0;
 static int mod_alt = 0;
 static int mod_meta = 0;
 
+/* Passthrough mode tracking */
+static int passthrough_active = 0;
+
+/* Check if passthrough mode is currently active */
+static int is_passthrough_active()
+{
+	return passthrough_active;
+}
+
 static int is_grabbed_key(uint8_t code, uint8_t mods)
 {
 	size_t i;
@@ -25,6 +34,7 @@ static int is_grabbed_key(uint8_t code, uint8_t mods)
 }
 
 static const char *input_lookup_name(uint8_t code, int shifted);
+static uint8_t input_lookup_code(const char *name, int *shifted);
 
 static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -81,13 +91,133 @@ static LRESULT CALLBACK keyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		(mod_alt ? PLATFORM_MOD_ALT : 0) |
 		(mod_meta ? PLATFORM_MOD_META : 0));
 
+	/* If keyboard is not grabbed, reset passthrough state */
+	if (!keyboard_grabbed) {
+		passthrough_active = 0;
+		
+		/* Still need to send to warpd and check for activation keys */
+		PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
+		
+		/* Check for activation keys (e.g., A-M-c to enter normal mode) */
+		if (is_grabbed_key(code, mods))
+			return 1;  /* Consume the activation key */
+		
+		/* Not an activation key, pass through to apps */
+		goto passthrough;
+	}
+
+	/* Check if this is the passthrough key (only when keyboard is grabbed) */
+	{
+		int is_passthrough_key = 0;
+		
+		/* 
+		 * Parse passthrough_key config to determine the specific key.
+		 * Supported formats:
+		 *   "lalt"    - Left Alt only
+		 *   "ralt"    - Right Alt only  
+		 *   "alt"     - Any Alt key (VK_MENU, VK_LMENU, VK_RMENU)
+		 *   "A-"      - Any Alt modifier alone (same as "alt")
+		 *   "capslock"- Caps Lock key
+		 *   etc.
+		 */
+		static int passthrough_key_initialized = 0;
+		static uint8_t passthrough_key_code = 0;
+		static uint8_t passthrough_key_mods = 0;
+		static int passthrough_is_any_alt = 0;
+		
+		if (!passthrough_key_initialized) {
+			const char *cfg = config_get("passthrough_key");
+			
+			if (cfg && cfg[0]) {
+				/* Check for "A-" pattern (Alt modifier alone) */
+				if (strcmp(cfg, "A-") == 0) {
+					passthrough_is_any_alt = 1;
+				} else if (strcmp(cfg, "alt") == 0) {
+					passthrough_is_any_alt = 1;
+				} else {
+					/* Parse as a specific key name */
+					int shifted = 0;
+					passthrough_key_code = input_lookup_code(cfg, &shifted);
+					
+					/* Check for modifier prefix */
+					const char *c = cfg;
+					while (c[1] == '-') {
+						switch (c[0]) {
+						case 'A': passthrough_key_mods |= PLATFORM_MOD_ALT; break;
+						case 'M': passthrough_key_mods |= PLATFORM_MOD_META; break;
+						case 'S': passthrough_key_mods |= PLATFORM_MOD_SHIFT; break;
+						case 'C': passthrough_key_mods |= PLATFORM_MOD_CONTROL; break;
+						}
+						c += 2;
+					}
+					
+					/* If just a key name like "lalt", get the code */
+					if (passthrough_key_code == 0 && c[0]) {
+						passthrough_key_code = input_lookup_code(c, &shifted);
+					}
+				}
+			} else {
+				/* Default: any Alt */
+				passthrough_is_any_alt = 1;
+			}
+			
+			passthrough_key_initialized = 1;
+		}
+		
+		/* Check if current event matches the passthrough key */
+		if (passthrough_is_any_alt) {
+			/* Match any Alt key with no other modifiers held */
+			if ((code == VK_MENU || code == VK_LMENU || code == VK_RMENU) &&
+			    !mod_shift && !mod_ctrl && !mod_meta) {
+				is_passthrough_key = 1;
+			}
+		} else if (passthrough_key_code != 0) {
+			/* Match specific key code with required modifiers */
+			/* For modifier keys like lalt/ralt, we need to check before mod update */
+			uint8_t other_mods = 0;
+			
+			/* Check which modifiers are held EXCLUDING the key being pressed/released */
+			int key_is_shift = (code == VK_SHIFT || code == VK_LSHIFT || code == VK_RSHIFT);
+			int key_is_ctrl = (code == VK_CONTROL || code == VK_LCONTROL || code == VK_RCONTROL);
+			int key_is_alt = (code == VK_MENU || code == VK_LMENU || code == VK_RMENU);
+			int key_is_meta = (code == VK_LWIN || code == VK_RWIN);
+			
+			if (!key_is_shift && mod_shift) other_mods |= PLATFORM_MOD_SHIFT;
+			if (!key_is_ctrl && mod_ctrl) other_mods |= PLATFORM_MOD_CONTROL;
+			if (!key_is_alt && mod_alt) other_mods |= PLATFORM_MOD_ALT;
+			if (!key_is_meta && mod_meta) other_mods |= PLATFORM_MOD_META;
+			
+			if (code == passthrough_key_code && other_mods == passthrough_key_mods) {
+				is_passthrough_key = 1;
+			}
+		}
+		
+		if (is_passthrough_key) {
+			if (pressed) {
+				passthrough_active = 1;
+			} else {
+				passthrough_active = 0;
+			}
+			/* Consume the passthrough key itself - don't send to apps */
+			/* Still send to warpd so UI can update (trigger redraw) */
+			PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
+			return 1;
+		}
+		
+		/* If passthrough mode is active, let all other keys through WITHOUT sending to warpd */
+		if (passthrough_active) {
+			goto passthrough;
+		}
+	}
+
+	/* Normal warpd mode: send to warpd and consume the key */
 	PostMessage(NULL, WM_KEY_EVENT, pressed << 16 | mods << 8 | code, 0);
 
 	if (is_grabbed_key(code, mods))
 		return 1;
 
-	if (keyboard_grabbed)
-		return 1;  //return non zero to consume the input
+	/* keyboard_grabbed is true here, consume all input */
+	return 1;
 
 passthrough:
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -491,6 +621,9 @@ static void input_grab_keyboard()
 
 	keyboard_grabbed = 1;
 	
+	/* Ensure passthrough mode starts as inactive */
+	passthrough_active = 0;
+	
 	/* Use BlockInput to block all keyboard and mouse input
 	 * 
 	 * IMPORTANT: Requires administrator privileges to work!
@@ -503,6 +636,15 @@ static void input_grab_keyboard()
 static void input_ungrab_keyboard()
 {
 	keyboard_grabbed = 0;
+	
+	/* Reset passthrough state when exiting warpd */
+	passthrough_active = 0;
+	
+	/* Reset modifier tracking to avoid stale state */
+	mod_shift = 0;
+	mod_ctrl = 0;
+	mod_alt = 0;
+	mod_meta = 0;
 	
 	// Unblock keyboard input
 	BlockInput(FALSE);
@@ -808,6 +950,7 @@ void platform_run(int (*main)(struct platform *platform))
 	platform.screen_draw_box = screen_draw_box;
 	platform.input_next_event = input_next_event;
 	platform.input_wait = input_wait;
+	platform.is_passthrough_active = is_passthrough_active;
 	platform.screen_clear = screen_clear;
 
 	platform.screen_get_dimensions = screen_get_dimensions;

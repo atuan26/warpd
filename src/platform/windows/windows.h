@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include "../../platform.h"
+#include "../../warpd.h"
+
 
 #define WM_CONFIG_UPDATE WM_USER
 #define WM_KEY_EVENT (WM_USER+1)

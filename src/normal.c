@@ -18,6 +18,11 @@ static void redraw(screen_t scr, int x, int y, int hide_cursor)
 	const char *curcol = config_get("cursor_color");
 	const char *indicator = config_get("indicator");
 	const int cursz = config_get_int("cursor_size");
+	
+	/* Check if passthrough mode is active and use passthrough color */
+	if (platform->is_passthrough_active && platform->is_passthrough_active()) {
+		indicator_color = config_get("passthrough_indicator_color");
+	}
 
 	platform->screen_clear(scr);
 
@@ -88,6 +93,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"left",
 		"middle",
 		"oneshot_buttons",
+		"passthrough_key",
 		"paste",
 		"print",
 		"right",
@@ -101,8 +107,6 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"top",
 		"up",
 	};
-
-	platform->input_grab_keyboard();
 
 	platform->mouse_get_position(&scr, &mx, &my);
 	platform->screen_get_dimensions(scr, &sw, &sh);
@@ -190,6 +194,10 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 				mouse_slow();
 			else
 				mouse_normal();
+		} else if (config_input_match(ev, "passthrough_key")) {
+			/* Passthrough key pressed/released - redraw to update indicator color */
+			redraw(scr, mx, my, !show_cursor);
+			continue;
         } else if (!ev->pressed) {
 			goto next;
 		}
@@ -290,8 +298,6 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 exit:
 	platform->mouse_show();
 	platform->screen_clear(scr);
-
-	platform->input_ungrab_keyboard();
 
 	platform->commit();
 	return ev;

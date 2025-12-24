@@ -34,13 +34,11 @@ void screen_selection_mode()
 
 	platform->commit();
 
-	platform->input_grab_keyboard();
 	while (1) {
 		ev = platform->input_next_event(0);
 		if (ev->pressed)
 			break;
 	}
-	platform->input_ungrab_keyboard();
 
 	for (i = 0; i < n; i++) {
 		const char *key = input_event_tostr(ev);

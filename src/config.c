@@ -30,6 +30,7 @@ static struct {
 
 	{ "exit", "esc", "Exit all modes. Returns to normal mode from sub-modes, or exits warpd if already in normal mode.", OPT_KEY },
 	{ "toggle_insert_mode", "i", "Show text input dialog. Pre-fills with clipboard. Type text and press Enter to paste, or Escape to cancel.", OPT_KEY },
+	{ "passthrough_key", "ralt", "Hold this key to enable passthrough mode. Default is left alt, so right alt can still be used for Alt+F4, etc. Set to 'alt' for any alt, or 'capslock', 'ralt', etc.", OPT_KEY },
 	{ "drag", "v", "Toggle drag mode (mnemonic (v)isual mode).", OPT_KEY },
 	{ "copy", "y", "Send the copy key", OPT_KEY },
 	{ "copy_and_exit", "c", "Send the copy key and exit (useful in combination with v).", OPT_KEY },
@@ -151,8 +152,9 @@ static struct {
 	{ "scroll_acceleration", "2400", "Scroll acceleration in units/second^2.", OPT_INT },
 	{ "scroll_deceleration", "-6000", "Scroll deceleration.", OPT_INT },
 
-	{ "indicator", "none", "Specifies an optional visual indicator to be displayed while normal mode is active, must be one of: topright, topleft, bottomright, bottomleft, none", OPT_STRING },
+	{ "indicator", "bottomright", "Specifies an optional visual indicator to be displayed while normal mode is active, must be one of: topright, topleft, bottomright, bottomleft, none", OPT_STRING },
 	{ "indicator_color", "#00ff00", "The color of the visual indicator color.", OPT_STRING },
+	{ "passthrough_indicator_color", "#0000ff", "The color of the indicator when passthrough mode is active.", OPT_STRING },
 	{ "indicator_size", "12", "The size of the visual indicator in pixels.", OPT_INT },
 
 	{ "normal_system_cursor", "0", "If set to non-zero, use the system cursor instead of warpd's internal one.", OPT_INT },

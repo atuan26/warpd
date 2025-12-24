@@ -87,6 +87,9 @@ struct platform {
 	 * and returning the matched event.
 	 */
 	struct input_event *(*input_wait)(struct input_event *events, size_t sz);
+	
+	/* Check if passthrough mode is currently active (Windows only for now) */
+	int (*is_passthrough_active)();
 
 	void (*mouse_move)(screen_t scr, int x, int y);
 	void (*mouse_down)(int btn);

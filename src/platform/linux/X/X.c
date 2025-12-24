@@ -15,6 +15,40 @@ extern void linux_free_ui_elements(struct ui_detection_result *result);
 /* AT-SPI cleanup function */
 extern void atspi_cleanup(void);
 
+/* Passthrough mode tracking */
+static int passthrough_active = 0;
+
+static int x_is_passthrough_active()
+{
+	return passthrough_active;
+}
+
+void x_set_passthrough_active(int active)
+{
+	passthrough_active = active;
+}
+
+/*
+ * TODO: Implement passthrough mode in X11 input handling
+ * 
+ * In input.c x_input_next_event():
+ * 1. Parse config_get("passthrough_key") to determine which key to use
+ * 2. Check if event matches the passthrough key:
+ *    - Compare event code against parsed passthrough key code
+ *    - Check that modifiers match (use xmods_to_mods() or get_code_modifier())
+ * 3. On passthrough key press: 
+ *    - Call x_set_passthrough_active(1)
+ *    - Call x_input_ungrab_keyboard() to release XIGrabDevice
+ *    - Use XGrabKey() to grab ONLY the passthrough key release event
+ * 4. On passthrough key release:
+ *    - Call x_set_passthrough_active(0)
+ *    - XUngrabKey() the passthrough key
+ *    - Call x_input_grab_keyboard() to resume full keyboard control
+ * 5. While passthrough active:
+ *    - All keys except the passthrough key go directly to applications
+ *    - Only passthrough key events are received by warpd
+ */
+
 static int x_insert_text_mode(screen_t scr)
 {
 	x_copy_selection();
@@ -305,4 +339,7 @@ void x_init(struct platform *platform)
 	
 	/* Paste key (copy already exists as x_copy_selection) */
 	platform->send_paste = x_send_paste;
+	
+	/* Passthrough mode */
+	platform->is_passthrough_active = x_is_passthrough_active;
 }
