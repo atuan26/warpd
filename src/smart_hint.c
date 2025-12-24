@@ -369,6 +369,18 @@ int smart_hint_mode(void)
 
 	/* Keep drawing animated cursor while detection runs */
 	while (!detector_thread_is_done(thread)) {
+		/* Consume and discard any key events during detection to prevent leaks */
+		struct input_event *ev = platform->input_next_event(1); /* 1ms timeout */
+		if (ev && ev->pressed) {
+			if (config_input_match(ev, "exit")) {
+				detector_thread_join(thread);
+				platform->screen_clear(scr);
+				platform->commit();
+				platform->mouse_show();
+				return -1;
+			}
+		}
+
 		/* Redraw message and animated cursor */
 		platform->mouse_get_position(&scr, &mx, &my);
 		show_message(scr, "Detecting...", hint_h);
@@ -436,6 +448,8 @@ int smart_hint_mode(void)
 
 		platform->screen_clear(scr);
 		platform->commit();
+
+		platform->mouse_show();
 
 		if (hint_array)
 			free(hint_array);
