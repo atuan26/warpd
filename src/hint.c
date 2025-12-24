@@ -104,12 +104,11 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 
 	int rc = 0;
 	char buf[32] = {0};
-	platform->input_grab_keyboard();
 
 	platform->mouse_hide();
 
 	const char *keys[] = {
-		"hint_exit",
+		"exit",
 		"hint_undo_all",
 		"hint_undo",
 	};
@@ -127,7 +126,7 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 
 		len = strlen(buf);
 
-		if (config_input_match(ev, "hint_exit")) {
+		if (config_input_match(ev, "exit")) {
 			rc = -1;
 			break;
 		} else if (config_input_match(ev, "hint_undo_all")) {
@@ -170,7 +169,6 @@ static int hint_selection(screen_t scr, struct hint *_hints, size_t _nr_hints)
 		}
 	}
 
-	platform->input_ungrab_keyboard();
 	platform->screen_clear(scr);
 	platform->mouse_show();
 

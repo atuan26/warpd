@@ -6,15 +6,17 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 	int rc = 0;
 	struct input_event *ev = NULL;
 
+	/* Grab keyboard at the start - will be held throughout all mode transitions 
+	 * This prevents key leaks between mode transitions */
+	platform->input_grab_keyboard();
+
 	while (1) {
 		int btn = 0;
 		config_input_whitelist(NULL, 0);
 
 		switch (mode) {
 		case MODE_HISTORY:
-			if (history_hint_mode() < 0)
-				goto exit;
-
+			history_hint_mode();
 			ev = NULL;
 			mode = MODE_NORMAL;
 			break;
@@ -47,15 +49,13 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 			break;
 		case MODE_HINT2:
 		case MODE_HINT:
-			if (full_hint_mode(mode == MODE_HINT2) < 0)
-				goto exit;
-
+			full_hint_mode(mode == MODE_HINT2);
 			ev = NULL;
 			mode = MODE_NORMAL;
 			break;
 		case MODE_GRID:
 			ev = grid_mode();
-			if (config_input_match(ev, "grid_exit"))
+			if (config_input_match(ev, "exit"))
 				ev = NULL;
 			mode = MODE_NORMAL;
 			break;
@@ -86,10 +86,15 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 			else
 				printf("%d %d\n", x, y);
 
+			/* Ungrab before returning */
+			platform->input_ungrab_keyboard();
 			return btn;
 		}
 	}
 
 exit:
+	/* Ungrab keyboard when truly exiting */
+	platform->input_ungrab_keyboard();
 	return rc;
 }
+

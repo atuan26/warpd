@@ -38,8 +38,14 @@ void scroll_tick()
 	int i;
 	/* Non zero to provide the illusion of continuous scrolling */
 
-	const float t = (float)(get_time_us()/1000 - last_tick); // time elapsed since last tick in ms
-	last_tick = get_time_us()/1000;
+	const long current_time = get_time_us()/1000;
+	float t = (float)(current_time - last_tick); // time elapsed since last tick in ms
+	last_tick = current_time;
+
+	/* Safety: clamp time delta to prevent huge scrolls from stale last_tick */
+	if (t < 0 || t > 500) {
+		t = 16;  /* Default to ~60fps equivalent */
+	}
 
 	/* distance traveled since the last tick */
 	d += v * (t / 1000) + .5 * a * (t / 1000) * (t / 1000);
@@ -68,6 +74,7 @@ void scroll_stop()
 	a = 0;
 	traveled = 0;
 	d = 0;
+	last_tick = get_time_us() / 1000;
 }
 
 void scroll_decelerate()
@@ -77,8 +84,6 @@ void scroll_decelerate()
 
 void scroll_accelerate(int _direction)
 {
-	/* If we're already scrolling in this direction, just ensure acceleration
-	 * is maintained. This prevents key repeat events from resetting velocity. */
 	if (direction == _direction && v > 0) {
 		a = a0;
 		return;

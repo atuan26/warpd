@@ -19,8 +19,7 @@ hint_command_t hint_input_parse(struct input_event *ev, hint_state_t *state)
 		return cmd;
 	}
 
-	/* Check for exit command */
-	if (config_input_match(ev, "smart_hint_exit")) {
+	if (config_input_match(ev, "exit")) {
 		cmd.type = HINT_CMD_EXIT;
 		return cmd;
 	}

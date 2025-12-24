@@ -108,8 +108,6 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		"up",
 	};
 
-	platform->input_grab_keyboard();
-
 	platform->mouse_get_position(&scr, &mx, &my);
 	platform->screen_get_dimensions(scr, &sw, &sh);
 
@@ -117,6 +115,7 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 		platform->mouse_hide();
 
 	mouse_reset();
+	scroll_stop();  /* Reset any stale scroll state from previous sessions */
 	redraw(scr, mx, my, !show_cursor);
 
 	uint64_t time = 0;
@@ -299,8 +298,6 @@ struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
 exit:
 	platform->mouse_show();
 	platform->screen_clear(scr);
-
-	platform->input_ungrab_keyboard();
 
 	platform->commit();
 	return ev;

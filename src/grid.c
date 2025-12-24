@@ -86,7 +86,6 @@ struct input_event *grid_mode()
 	const int nc = config_get_int("grid_nc");
 	const int nr = config_get_int("grid_nr");
 
-	platform->input_grab_keyboard();
 	platform->mouse_hide();
 	mouse_reset();
 
@@ -116,7 +115,6 @@ struct input_event *grid_mode()
 		"hint",
 		"exit",
 		"drag",
-		"grid_exit",
 	};
 
 	config_input_whitelist(keys, sizeof keys / sizeof keys[0]);
@@ -189,8 +187,7 @@ struct input_event *grid_mode()
 		if (config_input_match(ev, "grid") ||
 		    config_input_match(ev, "hint") ||
 		    config_input_match(ev, "exit") ||
-		    config_input_match(ev, "drag") ||
-		    config_input_match(ev, "grid_exit"))
+		    config_input_match(ev, "drag"))
 			goto exit;
 
 		redraw(mx, my, 0);
@@ -200,8 +197,6 @@ exit:
 	config_input_whitelist(NULL, 0);
 	platform->screen_clear(scr);
 	platform->mouse_show();
-
-	platform->input_ungrab_keyboard();
 
 	platform->commit();
 	return ev;

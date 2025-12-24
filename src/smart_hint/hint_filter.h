@@ -30,12 +30,31 @@ int hint_filter_apply(hint_state_t *state);
 /**
  * Fuzzy match: check if all characters in pattern appear in order in text
  *
- * Case-insensitive matching.
+ * Case-insensitive matching with Unicode normalization.
  *
  * @param text Text to search in
  * @param pattern Pattern to match
  * @return 1 if matches, 0 otherwise
  */
 int hint_filter_fuzzy_match(const char *text, const char *pattern);
+
+/**
+ * Fuzzy match with scoring for ranking
+ *
+ * Calculates match quality based on:
+ *   - Start position (earlier = better)
+ *   - Contiguity (consecutive chars = better)  
+ *   - Span (tighter match = better)
+ *
+ * Includes Unicode normalization for Vietnamese diacritics.
+ *
+ * Score formula: (start_pos × 100) + span + (contiguous ? 0 : 50)
+ * Lower score = better match
+ *
+ * @param text Text to search in
+ * @param pattern Pattern to match
+ * @return -1 if no match, otherwise score (lower is better, 0 = perfect)
+ */
+int hint_filter_fuzzy_match_score(const char *text, const char *pattern);
 
 #endif /* HINT_FILTER_H */
