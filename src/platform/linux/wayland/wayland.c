@@ -10,6 +10,8 @@
 extern struct ui_detection_result *linux_detect_ui_elements(void);
 extern void linux_free_ui_elements(struct ui_detection_result *result);
 
+static void wayland_send_paste(void);
+
 /* Insert text mode - uses zenity for text input */
 static int wayland_insert_text_mode(screen_t scr)
 {
