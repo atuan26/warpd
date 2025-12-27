@@ -83,6 +83,14 @@ static struct hint *convert_elements_to_hints(struct ui_detection_result *result
 	}
 	*out_is_opencv = all_no_names;
 
+	if (all_no_names) {
+		const char *opencv_mode = config_get("opencv_hint_mode");
+		if (strcmp(opencv_mode, "inherit") != 0) {
+			is_numeric_mode = strcmp(opencv_mode, "numeric") == 0;
+			fprintf(stderr, "DEBUG: OpenCV detected, using opencv_hint_mode='%s'\n", opencv_mode);
+		}
+	}
+
 	/* Convert UI elements to hints */
 	size_t valid_count = 0;
 	for (size_t i = 0; i < result->count; i++) {
@@ -178,6 +186,14 @@ static int hint_selection_loop(screen_t scr, struct hint *hints, size_t nr_hints
 		if (hints[i].element_name != NULL) {
 			is_opencv = 0;
 			break;
+		}
+	}
+
+	if (is_opencv) {
+		const char *opencv_mode = config_get("opencv_hint_mode");
+		if (strcmp(opencv_mode, "inherit") != 0) {
+			hint_mode = (strcmp(opencv_mode, "numeric") == 0) ?
+			            HINT_MODE_NUMERIC : HINT_MODE_ALPHABETIC;
 		}
 	}
 

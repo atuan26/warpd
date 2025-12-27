@@ -18,6 +18,7 @@ static struct {
 	{ "hint2_activation_key", "A-M-X", "Activate two pass hint mode.", OPT_KEY },
 	{ "smart_hint_activation_key", "A-M-f", "Activate smart hint mode (element-based detection).", OPT_KEY },
 	{ "smart_hint_mode", "numeric", "Smart hint label mode: 'numeric' (Vimium-style with fuzzy text filter) or 'alphabet' (classic label matching).", OPT_STRING },
+	{ "opencv_hint_mode", "inherit", "Hint mode for OpenCV detection: 'inherit' (use smart_hint_mode), 'numeric', or 'alphabet'.", OPT_STRING },
 	{ "grid_activation_key", "A-M-g", "Activates grid mode and allows for further manipulation of the pointer using the mapped keys.", OPT_KEY },
 	{ "history_activation_key", "A-M-h", "Activate history mode.", OPT_KEY },
 	{ "screen_activation_key", "A-M-s", "Activate (s)creen selection mode.", OPT_KEY },
