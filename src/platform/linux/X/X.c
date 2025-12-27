@@ -15,6 +15,8 @@ extern void linux_free_ui_elements(struct ui_detection_result *result);
 /* AT-SPI cleanup function */
 extern void atspi_cleanup(void);
 
+static void x_send_paste(void);
+
 static int x_insert_text_mode(screen_t scr)
 {
 	x_copy_selection();
