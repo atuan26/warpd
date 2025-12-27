@@ -1,0 +1,7 @@
+// Resource file for warpd manifest - requires admin privileges
+// This is necessary for warpd to work with elevated (admin) applications
+
+#define CREATEPROCESS_MANIFEST_RESOURCE_ID 1
+#define RT_MANIFEST 24
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "warpd.manifest"

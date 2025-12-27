@@ -491,21 +491,17 @@ static void input_grab_keyboard()
 
 	keyboard_grabbed = 1;
 	
-	/* Use BlockInput to block all keyboard and mouse input
-	 * 
-	 * IMPORTANT: Requires administrator privileges to work!
+	/* Note: We intentionally do NOT use BlockInput() here.
+	 * BlockInput blocks both keyboard AND mouse input, which would
+	 * prevent physical mouse movement from working.
+	 * The keyboard hook already prevents keystrokes from reaching
+	 * other apps by returning 1 (consuming the input).
 	 */
-	if (!BlockInput(TRUE)) {
-        // fprintf(stderr, "Warning: BlockInput failed (may need admin privileges)\n");
-	}
 }
 
 static void input_ungrab_keyboard()
 {
 	keyboard_grabbed = 0;
-	
-	// Unblock keyboard input
-	BlockInput(FALSE);
 }
 
 void hint_draw(screen_t scr, struct hint *hints, size_t nhints)

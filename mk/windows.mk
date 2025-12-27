@@ -61,17 +61,33 @@ endif
 %.o: %.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
-all: $(OBJFILES) src/windows/icon.res
+# Admin mode: build with UAC manifest that requests admin privileges
+# Usage: make ADMIN=1
+# This is needed for warpd to work with elevated (admin) apps
+ifdef ADMIN
+MANIFEST_RES=src/windows/manifest.res
+ADMIN_NOTE=@echo "NOTE: This build requests administrator privileges on startup"
+else
+MANIFEST_RES=
+ADMIN_NOTE=@echo "NOTE: This build does NOT request admin. Use 'make ADMIN=1' for elevated app support."
+endif
+
+all: $(OBJFILES) src/windows/icon.res $(MANIFEST_RES)
 	-mkdir -p bin
-	$(CXX) -o bin/warpd-$(VERSION).exe $(OBJFILES) src/windows/icon.res $(LDFLAGS)
+	$(CXX) -o bin/warpd-$(VERSION).exe $(OBJFILES) src/windows/icon.res $(MANIFEST_RES) $(LDFLAGS)
 	@echo "Built: bin/warpd-$(VERSION).exe"
+	$(ADMIN_NOTE)
 
 src/windows/icon.res: src/windows/icon.rc
+	windres $< -O coff -o $@
+
+src/windows/manifest.res: src/windows/manifest.rc src/windows/warpd.manifest
 	windres $< -O coff -o $@
 
 clean:
 	-rm -f $(OBJFILES)
 	-rm -f src/windows/icon.res
+	-rm -f src/windows/manifest.res
 	-rm -rf bin
 
 .PHONY: all clean
