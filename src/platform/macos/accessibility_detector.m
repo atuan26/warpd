@@ -77,8 +77,8 @@ static void convert_ax_element(AXUIElementRef element, struct ui_element *dest)
 
     static int debug_count = 0;
     if (debug_count < 5) {
-        fprintf(stderr, "DEBUG RAW [macOS]: Description='%s' Title='%s' Value='%s' Label='%s'\n",
-            descStr, titleStr, valueStr, labelStr);
+        // fprintf(stderr, "DEBUG RAW [macOS]: Description='%s' Title='%s' Value='%s' Label='%s'\n",
+        //     descStr, titleStr, valueStr, labelStr);
         debug_count++;
     }
 

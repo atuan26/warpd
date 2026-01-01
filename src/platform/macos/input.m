@@ -430,6 +430,7 @@ static void update_keymap()
 			case 127: set_name("uparrow")
 			case 125: set_name("rightarrow")
 			case 126: set_name("downarrow")
+			case 0x25: set_name("enter")
 
 			case 0x42: set_name("kpdecimal")
 			case 0x44: set_name("kpmultiply")

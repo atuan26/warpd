@@ -3,6 +3,12 @@
 export KEYCHAIN_NAME=warpd-temp-keychain
 export KEYCHAIN_PASSWORD=
 
+TARGET="$1"
+if [ -n "$TARGET" ] && [ "${TARGET#/}" = "$TARGET" ]; then
+	TARGET="$PWD/$TARGET"
+fi
+
+
 cd "$(dirname "$0")"
 
 security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
@@ -17,6 +23,8 @@ security unlock-keychain -p ${KEYCHAIN_PASSWORD} ${KEYCHAIN_NAME}
 # Suppress codesign modal password prompt
 security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" -D "${identity}" -t private ${KEYCHAIN_NAME} > /dev/null 2>&1
 
-codesign --force --deep --keychain "${KEYCHAIN_NAME}" -s warpd ../bin/warpd
+
+
+codesign --force --deep --keychain "${KEYCHAIN_NAME}" -s warpd "${TARGET:-../bin/warpd}"
 
 security delete-keychain ${KEYCHAIN_NAME}

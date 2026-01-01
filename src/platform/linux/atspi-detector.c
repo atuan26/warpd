@@ -230,10 +230,10 @@ static void collect_element_info(AtspiAccessible *accessible, gint depth,
 	
 	static int debug_count = 0;
 	if (debug_count < 5) {
-		fprintf(stderr, "DEBUG RAW [Linux AT-SPI]: Name='%s' Label='%s' Description='%s'\n",
-			raw_name ? raw_name : "(null)",
-			label ? label : "(null)",
-			description ? description : "(null)");
+		// fprintf(stderr, "DEBUG RAW [Linux AT-SPI]: Name='%s' Label='%s' Description='%s'\n",
+		// 	raw_name ? raw_name : "(null)",
+		// 	label ? label : "(null)",
+		// 	description ? description : "(null)");
 		debug_count++;
 	}
 	
