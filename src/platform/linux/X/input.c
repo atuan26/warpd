@@ -422,6 +422,7 @@ struct {
 	{"'", "apostrophe"},
 	{"$", "dollar"},
 	{"backspace", "BackSpace"},
+	{"enter", "Return"},
 };
 
 uint8_t x_input_lookup_code(const char *name, int *shifted)

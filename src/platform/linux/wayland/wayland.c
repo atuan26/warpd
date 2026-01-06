@@ -84,6 +84,7 @@ static struct {
 	{";", "semicolon"},
 	{"$", "dollar"},
 	{"backspace", "BackSpace"},
+	{"enter", "Return"},
 };
 
 struct ptr ptr = {0};
