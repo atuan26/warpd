@@ -130,11 +130,10 @@ int opencv_is_available(void)
 #endif
 
 #ifdef WARPD_WAYLAND
-    // TODO: Check if Wayland screen capture is available
+    #ifndef WARPD_X
     fprintf(stderr, "WARNING: Wayland OpenCV detector not fully implemented\n");
-    return 0; // Disabled until implementation is complete
+    #endif
 #endif
-
     return 0;
 }
 
