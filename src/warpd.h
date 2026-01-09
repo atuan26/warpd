@@ -59,10 +59,11 @@ enum {
 	MODE_HINT,
 	MODE_HINT2,
 	MODE_GRID,
-	MODE_NORMAL,
+	MODE_POINTER,      /* Renamed from MODE_NORMAL - hjkl cursor movement */
 	MODE_HINTSPEC,
 	MODE_SCREEN_SELECTION,
 	MODE_SMART_HINT,
+	MODE_NORMAL,       /* NEW: Passive mode with keyboard passthrough */
 };
 
 enum option_type {
@@ -95,7 +96,8 @@ int history_hint_mode();
 int full_hint_mode(int second_pass);
 void screen_selection_mode();
 struct input_event *grid_mode();
-struct input_event *normal_mode(struct input_event *start_ev, int oneshot);
+struct input_event *pointer_mode(struct input_event *start_ev, int oneshot);
+struct input_event *normal_mode(void);
 
 int smart_hint_mode();
 

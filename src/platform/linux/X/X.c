@@ -12,6 +12,8 @@ Display *dpy = NULL;
 extern struct ui_detection_result *linux_detect_ui_elements(void);
 extern void linux_free_ui_elements(struct ui_detection_result *result);
 
+extern void linux_window_navigation_mode(screen_t scr);
+
 /* AT-SPI cleanup function */
 extern void atspi_cleanup(void);
 
@@ -307,4 +309,7 @@ void x_init(struct platform *platform)
 	
 	/* Paste key (copy already exists as x_copy_selection) */
 	platform->send_paste = x_send_paste;
+	
+	/* Window navigation mode (implemented in window_nav.c) */
+	platform->window_navigation_mode = linux_window_navigation_mode;
 }

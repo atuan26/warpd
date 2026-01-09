@@ -156,6 +156,13 @@ struct platform {
 	void (*free_ui_elements)(struct ui_detection_result *result);
 
 	/*
+	 * Window navigation mode - platform-specific window cycling
+	 * Shows window list, allows Tab cycling, Enter to focus.
+	 * May be NULL if not supported on this platform.
+	 */
+	void (*window_navigation_mode)(screen_t scr);
+
+	/*
 	* Draw operations may (or may not) be queued until this function
 	* is called.
 	*/

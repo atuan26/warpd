@@ -486,3 +486,150 @@ GSList *detect_elements()
 	deduplicate_elements_by_position(&element_list);
 	return element_list;
 }
+
+/* Frame/Area Navigation Support
+ * Detects scrollable areas and focusable frames WITHIN the active window.
+ * This is different from window switching - it navigates between panes/frames.
+ */
+
+/* Check if element is a scrollable/focusable frame */
+static gboolean is_focusable_frame(AtspiAccessible *element)
+{
+	AtspiRole role = atspi_accessible_get_role(element, NULL);
+	
+	/* Roles that typically represent scrollable/focusable areas */
+	switch (role) {
+		case ATSPI_ROLE_SCROLL_PANE:
+		case ATSPI_ROLE_VIEWPORT:
+		case ATSPI_ROLE_PANEL:
+		case ATSPI_ROLE_FRAME:
+		case ATSPI_ROLE_DOCUMENT_FRAME:
+		case ATSPI_ROLE_DOCUMENT_WEB:
+		case ATSPI_ROLE_TEXT:
+		case ATSPI_ROLE_TERMINAL:
+		case ATSPI_ROLE_LIST:
+		case ATSPI_ROLE_TREE:
+		case ATSPI_ROLE_TABLE:
+		case ATSPI_ROLE_TREE_TABLE:
+		case ATSPI_ROLE_CANVAS:
+		case ATSPI_ROLE_INTERNAL_FRAME:
+			return TRUE;
+		default:
+			break;
+	}
+	
+	/* Also check if element is focusable and has significant size */
+	AtspiStateSet *states = atspi_accessible_get_state_set(element);
+	if (states) {
+		gboolean focusable = atspi_state_set_contains(states, ATSPI_STATE_FOCUSABLE);
+		g_object_unref(states);
+		if (focusable)
+			return TRUE;
+	}
+	
+	return FALSE;
+}
+
+/* Recursively collect focusable frames within element */
+static void collect_frames(AtspiAccessible *element, GSList **frame_list, int depth, int max_depth)
+{
+	if (depth > max_depth || !element)
+		return;
+
+	/* Check if this element is a focusable frame */
+	if (is_focusable_frame(element)) {
+		gint x = 0, y = 0, w = 0, h = 0;
+		get_rect(element, &x, &y, &w, &h);
+		
+		/* Only include frames with reasonable size */
+		if (w >= 50 && h >= 50) {
+			WindowInfo *info = g_new0(WindowInfo, 1);
+			info->name = atspi_accessible_get_name(element, NULL);
+			
+			/* Get role as app name for display */
+			AtspiRole role = atspi_accessible_get_role(element, NULL);
+			info->app_name = g_strdup(atspi_role_get_name(role));
+			
+			info->x = x;
+			info->y = y;
+			info->w = w;
+			info->h = h;
+			info->window_ref = g_object_ref(element);
+			
+			*frame_list = g_slist_append(*frame_list, info);
+		}
+	}
+	
+	/* Recurse into children */
+	gint child_count = atspi_accessible_get_child_count(element, NULL);
+	for (gint i = 0; i < child_count && i < 50; i++) {
+		AtspiAccessible *child = atspi_accessible_get_child_at_index(element, i, NULL);
+		if (child) {
+			collect_frames(child, frame_list, depth + 1, max_depth);
+			g_object_unref(child);
+		}
+	}
+}
+
+GSList *get_all_windows(void)
+{
+	GSList *frame_list = NULL;
+	
+	/* Get the active window and collect frames within it */
+	AtspiAccessible *active = get_active_window();
+	if (!active) {
+		fprintf(stderr, "No active window found for frame detection\n");
+		return NULL;
+	}
+	
+	/* Collect focusable frames within the active window (max depth 8) */
+	collect_frames(active, &frame_list, 0, 8);
+	g_object_unref(active);
+	
+	/* Remove duplicate/overlapping frames */
+	/* TODO: deduplicate by position */
+	
+	return frame_list;
+}
+
+void focus_window(WindowInfo *win)
+{
+	if (!win || !win->window_ref)
+		return;
+
+	AtspiAccessible *element = (AtspiAccessible *)win->window_ref;
+	
+	/* First try AT-SPI grab_focus */
+	AtspiComponent *component = atspi_accessible_get_component(element);
+	if (component) {
+		atspi_component_grab_focus(component, NULL);
+		g_object_unref(component);
+	}
+	
+	/* For i3/tiling WMs: also click to focus using coordinates */
+	int center_x = win->x + win->w / 2;
+	int center_y = win->y + win->h / 2;
+	
+	/* Use xdotool to move mouse and click (works with i3) */
+	char cmd[256];
+	snprintf(cmd, sizeof(cmd), "xdotool mousemove %d %d click 1 2>/dev/null", center_x, center_y);
+	system(cmd);
+}
+
+static void free_window_info(WindowInfo *info)
+{
+	if (!info)
+		return;
+	if (info->name)
+		g_free(info->name);
+	if (info->app_name)
+		g_free(info->app_name);
+	if (info->window_ref)
+		g_object_unref(info->window_ref);
+	g_free(info);
+}
+
+void free_window_list(GSList *list)
+{
+	g_slist_free_full(list, (GDestroyNotify)free_window_info);
+}

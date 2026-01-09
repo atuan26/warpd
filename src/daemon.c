@@ -1,6 +1,7 @@
 #include "warpd.h"
 static const char *activation_keys[] = {
-	"activation_key",
+	"normal_activation_key",
+	"pointer_activation_key",
 	"hint_activation_key",
 	"smart_hint_activation_key",
 	"grid_activation_key",
@@ -48,8 +49,10 @@ void daemon_loop(const char *config_path)
 
 		config_input_whitelist(activation_keys, sizeof activation_keys / sizeof activation_keys[0]);
 
-		if (config_input_match(ev, "activation_key"))
+		if (config_input_match(ev, "normal_activation_key"))
 			mode = MODE_NORMAL;
+		else if (config_input_match(ev, "pointer_activation_key"))
+			mode = MODE_POINTER;
 		else if (config_input_match(ev, "grid_activation_key"))
 			mode = MODE_GRID;
 		else if (config_input_match(ev, "hint_activation_key"))

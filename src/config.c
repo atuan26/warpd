@@ -21,14 +21,17 @@ static struct {
 	{ "grid_activation_key", "A-M-g", "Activates grid mode and allows for further manipulation of the pointer using the mapped keys.", OPT_KEY },
 	{ "history_activation_key", "A-M-h", "Activate history mode.", OPT_KEY },
 	{ "screen_activation_key", "A-M-s", "Activate (s)creen selection mode.", OPT_KEY },
-	{ "activation_key", "A-M-c", "Activate normal movement mode (manual (c)ursor movement).", OPT_KEY },
+	{ "pointer_activation_key", "A-M-c", "Activate Pointer Mode (precise hjkl cursor movement).", OPT_KEY },
+	{ "normal_activation_key", "A-M-n", "Activate Normal Mode (passive overlay with keyboard passthrough).", OPT_KEY },
 
 	{ "hint_oneshot_key", "A-M-l", "Activate hint mode and exit upon selection.", OPT_KEY },
 	{ "hint2_oneshot_key", "A-M-L", "Activate two pass hint mode and exit upon selection.", OPT_KEY },
 
 	/* Normal mode keys */
 
-	{ "exit", "esc", "Exit all modes. Returns to normal mode from sub-modes, or exits warpd if already in normal mode.", OPT_KEY },
+	{ "exit", "esc", "Return to parent mode (Escape returns Pointer to Normal, sub-modes to Pointer).", OPT_KEY },
+	{ "quit", "q", "Exit warpd (in Normal Mode, after prefix key).", OPT_KEY },
+	{ "pointer", "c", "Switch to Pointer Mode (after prefix key in Normal Mode).", OPT_KEY },
 	{ "toggle_insert_mode", "i", "Show text input dialog. Pre-fills with clipboard. Type text and press Enter to paste, or Escape to cancel.", OPT_KEY },
 	{ "drag", "v", "Toggle drag mode (mnemonic (v)isual mode).", OPT_KEY },
 	{ "copy", "y", "Send the copy key", OPT_KEY },
@@ -54,14 +57,39 @@ static struct {
 	{ "right", "l", "Move the cursor right in normal mode.", OPT_KEY },
 	{ "top", "H", "Moves the cursor to the top of the screen in normal mode.", OPT_KEY },
 	{ "middle", "M", "Moves the cursor to the middle of the screen in normal mode.", OPT_KEY },
-	{ "bottom", "L", "Moves the cursor to the bottom of the screen in normal mode.", OPT_KEY },
-	{ "start", "0", "Moves the cursor to the leftmost corner of the screen in normal mode.", OPT_KEY },
-	{ "end", "$", "Moves the cursor to the rightmost corner of the screen in normal mode.", OPT_KEY },
+	{ "bottom", "L", "Moves the cursor to the bottom of the screen in Pointer Mode.", OPT_KEY },
+	{ "start", "0", "Moves the cursor to the leftmost corner of the screen in Pointer Mode.", OPT_KEY },
+	{ "end", "$", "Moves the cursor to the rightmost corner of the screen in Pointer Mode.", OPT_KEY },
 
-	{ "scroll_down", "e", "Scroll down key.", OPT_KEY },
-	{ "scroll_up", "r", "Scroll up key.", OPT_KEY },
-	{ "scroll_left", "E", "Scroll left key.", OPT_KEY },
-	{ "scroll_right", "R", "Scroll right key.", OPT_KEY },
+	/* Pointer Mode scroll keys (hjkl are for cursor movement in Pointer Mode) */
+	{ "scroll_down", "e", "Scroll down key (Pointer Mode).", OPT_KEY },
+	{ "scroll_up", "r", "Scroll up key (Pointer Mode).", OPT_KEY },
+	{ "scroll_left", "E", "Scroll left key (Pointer Mode).", OPT_KEY },
+	{ "scroll_right", "R", "Scroll right key (Pointer Mode).", OPT_KEY },
+
+	/* Normal Mode hotkeys (with C-A prefix, keyboard passthrough mode) */
+	{ "normal_scroll_down", "C-A-j", "Scroll down in Normal Mode.", OPT_KEY },
+	{ "normal_scroll_up", "C-A-k", "Scroll up in Normal Mode.", OPT_KEY },
+	{ "normal_scroll_left", "C-A-h", "Scroll left in Normal Mode.", OPT_KEY },
+	{ "normal_scroll_right", "C-A-l", "Scroll right in Normal Mode.", OPT_KEY },
+	{ "normal_smart_hint", "C-A-f", "Activate smart hint from Normal Mode.", OPT_KEY },
+	{ "normal_grid", "C-A-g", "Activate grid mode from Normal Mode.", OPT_KEY },
+	{ "normal_hint", "C-A-x", "Activate hint mode from Normal Mode.", OPT_KEY },
+	{ "normal_pointer", "C-A-c", "Switch to Pointer Mode from Normal Mode.", OPT_KEY },
+	{ "normal_quit", "C-A-q", "Exit warpd from Normal Mode.", OPT_KEY },
+	
+	/* Normal Mode indicator (shows when Normal Mode is active) */
+	{ "normal_indicator", "topright", "Position of Normal Mode indicator: topright, topleft, bottomright, bottomleft, none.", OPT_STRING },
+	{ "normal_indicator_color", "#00BFFF", "Color of Normal Mode indicator (distinct from Pointer Mode).", OPT_STRING },
+	{ "normal_indicator_size", "15", "Size of Normal Mode indicator in pixels.", OPT_INT },
+
+	/* Window navigation */
+	{ "normal_window_nav", "C-A-w", "Show window list for navigation.", OPT_KEY },
+	{ "window_next", "Tab", "Select next window.", OPT_KEY },
+	{ "window_prev", "S-Tab", "Select previous window.", OPT_KEY },
+	{ "window_select", "enter", "Focus selected window.", OPT_KEY },
+	{ "window_outline_color", "#00FF00", "Color of window selection outline.", OPT_STRING },
+	{ "window_outline_width", "3", "Width of window selection outline.", OPT_INT },
 
 	{ "cursor_color", "#FF4500", "The color of the pointer in normal mode (rgba hex value).", OPT_STRING },
 	{ "cursor_image", "", "Path to PNG image for normal cursor (empty = use built-in').", OPT_STRING },

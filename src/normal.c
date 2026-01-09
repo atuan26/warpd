@@ -6,293 +6,213 @@
 
 #include "warpd.h"
 
-static void redraw(screen_t scr, int x, int y, int hide_cursor)
+/*
+ * Draw the Normal Mode indicator overlay.
+ */
+static void draw_normal_overlay(screen_t scr)
 {
 	int sw, sh;
 
 	platform->screen_get_dimensions(scr, &sw, &sh);
 
 	const int gap = 10;
-	const int indicator_size = (config_get_int("indicator_size") * sh) / 1080;
-	const char *indicator_color = config_get("indicator_color");
-	const char *curcol = config_get("cursor_color");
-	const char *indicator = config_get("indicator");
-	const int cursz = config_get_int("cursor_size");
+	const int indicator_size = (config_get_int("normal_indicator_size") * sh) / 1080;
+	const char *indicator_color = config_get("normal_indicator_color");
+	const char *indicator = config_get("normal_indicator");
 
 	platform->screen_clear(scr);
 
-	if (!hide_cursor) {
-		const char *cursor_img_path = config_get("cursor_image");
-		if (cursor_img_path && cursor_img_path[0] != '\0') {
-			draw_target_cursor(scr, x, y);
-		} else {
-			platform->screen_draw_box(scr, x+1, y-cursz/2, cursz, cursz, curcol);
-		}
+	/* Draw indicator if configured */
+	if (strcmp(indicator, "none") != 0) {
+		if (!strcmp(indicator, "bottomleft"))
+			platform->screen_draw_box(scr, gap, sh-indicator_size-gap, indicator_size, indicator_size, indicator_color);
+		else if (!strcmp(indicator, "topleft"))
+			platform->screen_draw_box(scr, gap, gap, indicator_size, indicator_size, indicator_color);
+		else if (!strcmp(indicator, "topright"))
+			platform->screen_draw_box(scr, sw-indicator_size-gap, gap, indicator_size, indicator_size, indicator_color);
+		else if (!strcmp(indicator, "bottomright"))
+			platform->screen_draw_box(scr, sw-indicator_size-gap, sh-indicator_size-gap, indicator_size, indicator_size, indicator_color);
 	}
-
-	if (!strcmp(indicator, "bottomleft"))
-		platform->screen_draw_box(scr, gap, sh-indicator_size-gap, indicator_size, indicator_size, indicator_color);
-	else if (!strcmp(indicator, "topleft"))
-		platform->screen_draw_box(scr, gap, gap, indicator_size, indicator_size, indicator_color);
-	else if (!strcmp(indicator, "topright"))
-		platform->screen_draw_box(scr, sw-indicator_size-gap, gap, indicator_size, indicator_size, indicator_color);
-	else if (!strcmp(indicator, "bottomright"))
-		platform->screen_draw_box(scr, sw-indicator_size-gap, sh-indicator_size-gap, indicator_size, indicator_size, indicator_color);
 
 	platform->commit();
 }
 
-static void move(screen_t scr, int x, int y, int hide_cursor)
+/*
+ * Handle continuous scroll while C-A + scroll key is held.
+ * Returns 1 if modifiers are still held, 0 if released.
+ */
+static int handle_scroll_continuous(int direction, uint8_t required_mods)
 {
-	platform->mouse_move(scr, x, y);
-	redraw(scr, x, y, hide_cursor);
-}
-
-struct input_event *normal_mode(struct input_event *start_ev, int oneshot)
-{
-	const int cursz = config_get_int("cursor_size");
-	const int system_cursor = config_get_int("normal_system_cursor");
-	const char *blink_interval = config_get("normal_blink_interval");
-
-	int on_time, off_time;
 	struct input_event *ev;
-	screen_t scr;
-	int sh, sw;
-	int mx, my;
-	int dragging = 0;
-	int show_cursor = !system_cursor;
-
-	int n = sscanf(blink_interval, "%d %d", &on_time, &off_time);
-	assert(n > 0);
-	if (n == 1)
-		off_time = on_time;
-
-	const char *keys[] = {
-		"accelerator",
-		"bottom",
-		"buttons",
-		"copy",
-		"copy_and_exit",
-		"decelerator",
-		"down",
-		"drag",
-		"end",
-		"exit",
-		"grid",
-		"hint",
-		"hint2",
-		"smart_hint",
-		"hist_back",
-		"hist_forward",
-		"history",
-		"left",
-		"middle",
-		"oneshot_buttons",
-		"paste",
-		"print",
-		"right",
-		"screen",
-		"scroll_down",
-		"scroll_left",
-		"scroll_right",
-		"scroll_up",
-		"start",
-		"toggle_insert_mode",
-		"top",
-		"up",
-	};
-
-	platform->input_grab_keyboard();
-
-	platform->mouse_get_position(&scr, &mx, &my);
-	platform->screen_get_dimensions(scr, &sw, &sh);
-
-	if (!system_cursor)
-		platform->mouse_hide();
-
-	mouse_reset();
-	scroll_stop();  /* Reset any stale scroll state from previous sessions */
-	redraw(scr, mx, my, !show_cursor);
-
-	uint64_t time = 0;
-	uint64_t last_blink_update = 0;
+	int mods_still_held = 1;
+	
+	/* Initial scroll */
+	platform->scroll(direction);
+	
+	/* Keep scrolling while key AND modifiers are held */
+	scroll_accelerate(direction);
+	
 	while (1) {
-		config_input_whitelist(keys, sizeof keys / sizeof keys[0]);
-		if (start_ev == NULL) {
-			ev = platform->input_next_event(10);
-			time += 10;
-		} else {
-			ev = start_ev;
-			start_ev = NULL;
-		}
-
-		platform->mouse_get_position(&scr, &mx, &my);
-
-		if (!system_cursor && on_time) {
-			if (show_cursor && (time - last_blink_update) >= on_time) {
-				show_cursor = 0;
-				redraw(scr, mx, my, !show_cursor);
-				last_blink_update = time;
-			} else if (!show_cursor && (time - last_blink_update) >= off_time) {
-				show_cursor = 1;
-				redraw(scr, mx, my, !show_cursor);
-				last_blink_update = time;
-			}
-		}
-
+		ev = platform->input_next_event(10);
 		scroll_tick();
-		if (mouse_process_key(ev, "up", "down", "left", "right")) {
-			redraw(scr, mx, my, !show_cursor);
+		
+		if (ev) {
+			/* Check if scroll key was released */
+			if (!ev->pressed) {
+				/* Check if modifiers are still held */
+				mods_still_held = (ev->mods & required_mods) == required_mods;
+				scroll_decelerate();
+				break;
+			}
+		}
+	}
+	
+	scroll_stop();
+	return mods_still_held;
+}
+
+/*
+ * Wait for next command while modifiers are held.
+ * Returns the command event, or NULL if modifiers were released.
+ */
+static struct input_event *wait_for_command(const char *keys[], size_t nkeys, uint8_t required_mods)
+{
+	struct input_event *ev;
+	
+	while (1) {
+		ev = platform->input_next_event(50);
+		
+		if (!ev)
+			continue;
+		
+		/* If this is a key release, check if it's a modifier release */
+		if (!ev->pressed) {
+			/* Check if required modifiers are still held */
+			if ((ev->mods & required_mods) != required_mods) {
+				/* Modifiers released - exit command mode */
+				return NULL;
+			}
+			continue;
+		}
+		
+		/* Key press - check if it matches any command */
+		config_input_whitelist(keys, nkeys);
+		return ev;
+	}
+}
+
+/*
+ * Normal Mode - Passive overlay with keyboard passthrough.
+ * 
+ * Features:
+ * - All hotkeys use C-A (Ctrl+Alt) prefix
+ * - While C-A is held, multiple commands can be issued (e.g. j,j,j for scroll)
+ * - Releasing C-A returns to keyboard passthrough
+ */
+struct input_event *normal_mode(void)
+{
+	screen_t scr;
+	struct input_event *ev = NULL;
+	const uint8_t PREFIX_MODS = PLATFORM_MOD_CONTROL | PLATFORM_MOD_ALT;
+
+	platform->mouse_get_position(&scr, NULL, NULL);
+
+	/* Draw Normal Mode indicator */
+	draw_normal_overlay(scr);
+
+	/* Normal Mode hotkeys - all use C-A prefix */
+	const char *keys[] = {
+		"normal_quit",          /* C-A-q - exit warpd */
+		"normal_pointer",       /* C-A-c - switch to Pointer Mode */
+		"normal_grid",          /* C-A-g - grid mode */
+		"normal_hint",          /* C-A-x - hint mode */
+		"normal_smart_hint",    /* C-A-f - smart hint */
+		"normal_scroll_down",   /* C-A-j - scroll down */
+		"normal_scroll_up",     /* C-A-k - scroll up */
+		"normal_scroll_left",   /* C-A-h - scroll left */
+		"normal_scroll_right",  /* C-A-l - scroll right */
+		"normal_window_nav",    /* C-A-w - frame navigation */
+	};
+	const size_t nkeys = sizeof keys / sizeof keys[0];
+
+	struct input_event activation_events[sizeof keys / sizeof keys[0]];
+	size_t i;
+
+	for (i = 0; i < nkeys; i++)
+		input_parse_string(&activation_events[i], config_get(keys[i]));
+
+	while (1) {
+		/* Wait for any Normal Mode hotkey (keyboard NOT grabbed) */
+		ev = platform->input_wait(activation_events, nkeys);
+
+		if (!ev) {
+			/* Config file changed, re-parse keys */
+			for (i = 0; i < nkeys; i++)
+				input_parse_string(&activation_events[i], config_get(keys[i]));
+			draw_normal_overlay(scr);
 			continue;
 		}
 
-		if (!ev)  {
-			/* Redraw to keep animated cursors animating */
-			if (!system_cursor && show_cursor) {
-				redraw(scr, mx, my, !show_cursor);
-			}
-			continue;
-		} else if (config_input_match(ev, "scroll_down")) {
-			redraw(scr, mx, my, 1);
+		/* Keyboard is now grabbed - stay in "command mode" while C-A is held */
+		config_input_whitelist(keys, nkeys);
 
-			if (ev->pressed) {
-				scroll_accelerate(SCROLL_DOWN);
-			} else
-				scroll_decelerate();
-		} else if (config_input_match(ev, "scroll_up")) {
-			redraw(scr, mx, my, 1);
-
-			if (ev->pressed) {
-				scroll_accelerate(SCROLL_UP);
-			} else
-				scroll_decelerate();
-		} else if (config_input_match(ev, "scroll_left")) {
-			redraw(scr, mx, my, 1);
-
-			if (ev->pressed) {
-				scroll_accelerate(SCROLL_LEFT);
-			} else
-				scroll_decelerate();
-		} else if (config_input_match(ev, "scroll_right")) {
-			redraw(scr, mx, my, 1);
-
-			if (ev->pressed) {
-				scroll_accelerate(SCROLL_RIGHT);
-			} else
-				scroll_decelerate();
-		} else if (config_input_match(ev, "accelerator")) {
-			if (ev->pressed)
-				mouse_fast();
-			else
-				mouse_normal();
-		} else if (config_input_match(ev, "decelerator")) {
-			if (ev->pressed)
-				mouse_slow();
-			else
-				mouse_normal();
-        } else if (!ev->pressed) {
-			goto next;
+command_loop:
+		/* Handle mode transitions (exit normal mode) */
+		if (config_input_match(ev, "normal_quit")) {
+			platform->input_ungrab_keyboard();
+			break;
+		}
+		
+		if (config_input_match(ev, "normal_pointer")) {
+			platform->input_ungrab_keyboard();
+			break;
+		}
+		
+		if (config_input_match(ev, "normal_grid") ||
+		    config_input_match(ev, "normal_hint") ||
+		    config_input_match(ev, "normal_smart_hint")) {
+			platform->input_ungrab_keyboard();
+			break;
 		}
 
-		if (config_input_match(ev, "top"))
-			move(scr, mx, cursz / 2, !show_cursor);
-		else if (config_input_match(ev, "bottom"))
-			move(scr, mx, sh - cursz / 2, !show_cursor);
-		else if (config_input_match(ev, "middle"))
-			move(scr, mx, sh / 2, !show_cursor);
-		else if (config_input_match(ev, "start"))
-			move(scr, 1, my, !show_cursor);
-		else if (config_input_match(ev, "end"))
-			move(scr, sw - cursz, my, !show_cursor);
-		else if (config_input_match(ev, "hist_back")) {
-			hist_add(mx, my);
-			hist_prev();
-			hist_get(&mx, &my);
-
-			move(scr, mx, my, !show_cursor);
-		} else if (config_input_match(ev, "hist_forward")) {
-			hist_next();
-			hist_get(&mx, &my);
-
-			move(scr, mx, my, !show_cursor);
-		} else if (config_input_match(ev, "drag")) {
-			dragging = !dragging;
-			if (dragging)
-				platform->mouse_down(config_get_int("drag_button"));
-			else
-				platform->mouse_up(config_get_int("drag_button"));
-		} else if (config_input_match(ev, "copy")) {
-			platform->copy_selection();
-		} else if (config_input_match(ev, "paste")) {
-			if (platform->send_paste) {
-				platform->send_paste();
+		/* Handle scroll - stays in command mode if modifiers held */
+		if (config_input_match(ev, "normal_scroll_down")) {
+			if (handle_scroll_continuous(SCROLL_DOWN, PREFIX_MODS)) {
+				ev = wait_for_command(keys, nkeys, PREFIX_MODS);
+				if (ev) goto command_loop;
 			}
-		} else if (config_input_match(ev, "copy_and_exit")) {
-			platform->mouse_up(config_get_int("drag_button"));
-			platform->copy_selection();
-			ev = NULL;
-			goto exit;
-		} else if (config_input_match(ev, "toggle_insert_mode")) {
-			if (platform->insert_text_mode) {
-				platform->insert_text_mode(scr);
+		} else if (config_input_match(ev, "normal_scroll_up")) {
+			if (handle_scroll_continuous(SCROLL_UP, PREFIX_MODS)) {
+				ev = wait_for_command(keys, nkeys, PREFIX_MODS);
+				if (ev) goto command_loop;
 			}
-			redraw(scr, mx, my, !show_cursor);
-		} else if (config_input_match(ev, "exit") ||
-			   config_input_match(ev, "grid") ||
-			   config_input_match(ev, "screen") ||
-			   config_input_match(ev, "history") ||
-			   config_input_match(ev, "smart_hint") ||
-			   config_input_match(ev, "hint2") ||
-			   config_input_match(ev, "hint")) {
-			goto exit;
-		} else if (config_input_match(ev, "print")) {
-			printf("%d %d %s\n", mx, my, input_event_tostr(ev));
-			fflush(stdout);
-		} else { /* Mouse Buttons. */
-			int btn;
-
-			if ((btn = config_input_match(ev, "buttons"))) {
-				if (oneshot) {
-					printf("%d %d\n", mx, my);
-					exit(btn);
-				}
-
-				hist_add(mx, my);
-				histfile_add(mx, my);
-				platform->mouse_click(btn);
-			} else if ((btn = config_input_match(ev, "oneshot_buttons"))) {
-				hist_add(mx, my);
-				platform->mouse_click(btn);
-
-				const int timeout = config_get_int("oneshot_timeout");
-
-				while (1) {
-					struct input_event *ev = platform->input_next_event(timeout);
-
-					if (!ev)
-						break;
-
-					if (ev && ev->pressed &&
-						config_input_match(ev, "oneshot_buttons")) {
-						platform->mouse_click(btn);
-					}
-				}
-
-				goto exit;
+		} else if (config_input_match(ev, "normal_scroll_left")) {
+			if (handle_scroll_continuous(SCROLL_LEFT, PREFIX_MODS)) {
+				ev = wait_for_command(keys, nkeys, PREFIX_MODS);
+				if (ev) goto command_loop;
+			}
+		} else if (config_input_match(ev, "normal_scroll_right")) {
+			if (handle_scroll_continuous(SCROLL_RIGHT, PREFIX_MODS)) {
+				ev = wait_for_command(keys, nkeys, PREFIX_MODS);
+				if (ev) goto command_loop;
+			}
+		} else if (config_input_match(ev, "normal_window_nav")) {
+			if (platform->window_navigation_mode) {
+				platform->window_navigation_mode(scr);
 			}
 		}
-	next:
-		platform->mouse_get_position(&scr, &mx, &my);
 
-		platform->commit();
+		/* Release keyboard to return to passthrough */
+		platform->input_ungrab_keyboard();
+
+		/* Redraw overlay */
+		platform->mouse_get_position(&scr, NULL, NULL);
+		draw_normal_overlay(scr);
 	}
 
-exit:
-	platform->mouse_show();
+	/* Cleanup */
 	platform->screen_clear(scr);
-
-	platform->input_ungrab_keyboard();
-
 	platform->commit();
+
 	return ev;
 }

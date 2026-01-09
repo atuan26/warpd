@@ -14,13 +14,32 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 		case MODE_HISTORY:
 			history_hint_mode();
 			ev = NULL;
-			mode = MODE_NORMAL;
+			mode = MODE_POINTER;
 			break;
 		case MODE_HINTSPEC:
 			hintspec_mode();
 			break;
 		case MODE_NORMAL:
-			ev = normal_mode(ev, oneshot);
+			/* Passive overlay mode with keyboard passthrough */
+			ev = normal_mode();
+
+			/* Normal Mode uses normal_* prefixed keys */
+			if (config_input_match(ev, "normal_quit")) {
+				rc = 0;
+				goto exit;
+			} else if (config_input_match(ev, "normal_pointer"))
+				mode = MODE_POINTER;
+			else if (config_input_match(ev, "normal_hint"))
+				mode = MODE_HINT;
+			else if (config_input_match(ev, "normal_grid"))
+				mode = MODE_GRID;
+			else if (config_input_match(ev, "normal_smart_hint"))
+				mode = MODE_SMART_HINT;
+
+			break;
+		case MODE_POINTER:
+			/* Active cursor control mode with full keyboard grab */
+			ev = pointer_mode(ev, oneshot);
 
 			if (config_input_match(ev, "history"))
 				mode = MODE_HISTORY;
@@ -38,8 +57,9 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 				goto exit;
 			}
 			else if (config_input_match(ev, "exit") || !ev) {
-				rc = 0;
-				goto exit;
+				/* Escape returns to Normal Mode */
+				mode = MODE_NORMAL;
+				ev = NULL;
 			}
 
 			break;
@@ -47,27 +67,27 @@ int mode_loop(int initial_mode, int oneshot, int record_history)
 		case MODE_HINT:
 			full_hint_mode(mode == MODE_HINT2);
 			ev = NULL;
-			mode = MODE_NORMAL;
+			mode = MODE_POINTER;
 			break;
 		case MODE_GRID:
 			ev = grid_mode();
 			if (config_input_match(ev, "exit"))
 				ev = NULL;
-			mode = MODE_NORMAL;
+			mode = MODE_POINTER;
 			break;
 		case MODE_SCREEN_SELECTION:
 			screen_selection_mode();
-			mode = MODE_NORMAL;
+			mode = MODE_POINTER;
 			ev = NULL;
 			break;
 		case MODE_SMART_HINT:
 			smart_hint_mode();
-			mode = MODE_NORMAL;
+			mode = MODE_POINTER;
 			ev = NULL;
 			break;
 		}
 
-		if (oneshot && (initial_mode != MODE_NORMAL || (btn = config_input_match(ev, "buttons")))) {
+		if (oneshot && (initial_mode != MODE_POINTER || (btn = config_input_match(ev, "buttons")))) {
 			int x, y;
 			screen_t scr;
 
